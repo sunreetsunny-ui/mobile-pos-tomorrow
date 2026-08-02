@@ -21,7 +21,7 @@ function id(prefix) { return `${prefix}_${crypto.randomUUID()}` }
 function defaultData() {
   return {
     setupComplete: false,
-    restaurant: { name: '', outlet: '', phone: '', address: '', currency: 'INR', timezone: 'Asia/Kolkata' },
+    restaurant: { name: '', outlet: '', phone: '', address: '', currency: 'INR', timezone: 'Asia/Kolkata', gstNumber: '', gstBps: 0 },
     users: [],
     tables: seedTables(),
     runningOrders: [],
@@ -62,6 +62,7 @@ function loadData() {
   if (!Array.isArray(data.tables)) data.tables = seedTables()
   if (!Array.isArray(data.runningOrders)) data.runningOrders = []
   if (!Array.isArray(data.printEvents)) data.printEvents = []
+  data.restaurant = { gstNumber: '', gstBps: 0, ...(data.restaurant || {}) }
   if (!data.sequences) data.sequences = { kot: 0, invoice: 0 }
   return data
 }
@@ -253,6 +254,7 @@ function recordBadLogin(key) {
 }
 
 function safeItemFromMenu(data, input) {
+  const gstBps = data.restaurant && data.restaurant.gstNumber && Number(data.restaurant.gstBps || 0) > 0 ? Math.trunc(Number(data.restaurant.gstBps)) : 0
   if (input.type === 'CUSTOM_ITEM') {
     if (!String(input.name || '').trim()) throw new Error('Custom item name required')
     if (!String(input.reason || '').trim()) throw new Error('Custom item reason required')
@@ -262,7 +264,7 @@ function safeItemFromMenu(data, input) {
       name: String(input.name).trim().slice(0, 80),
       reason: String(input.reason).trim().slice(0, 160),
       pricePaise: Math.max(0, Math.trunc(Number(input.pricePaise || 0))),
-      taxBps: Math.max(0, Math.min(10000, Math.trunc(Number(input.taxBps || 500)))),
+      taxBps: gstBps,
       quantity: Math.max(1, Math.trunc(Number(input.quantity || 1))),
     }
   }
@@ -274,7 +276,7 @@ function safeItemFromMenu(data, input) {
     name: menuItem.name,
     category: menuItem.category,
     pricePaise: menuItem.pricePaise,
-    taxBps: menuItem.taxBps,
+    taxBps: gstBps,
     quantity: Math.max(1, Math.trunc(Number(input.quantity || 1))),
   }
 }
@@ -308,6 +310,18 @@ function printedBillForTable(data, tableId, sinceAt = '') {
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
   const bill = bills.find(entry => data.printEvents.some(event => event.docKind === 'BILL' && event.docId === entry.id))
   return bill || null
+}
+
+function tableClearedAfter(data, tableId, at) {
+  return data.audit.some(event => event.action === 'TABLE_CLEARED_AFTER_PRINT' && event.details?.tableId === tableId && String(event.at) > String(at))
+}
+
+function withPrintCounts(docs, kind, data) {
+  return docs.map(doc => ({
+    ...doc,
+    printCount: data.printEvents.filter(event => event.docKind === kind && event.docId === doc.id).length,
+    reprintCount: data.printEvents.filter(event => event.docKind === kind && event.docId === doc.id && event.action === 'REPRINT').length,
+  }))
 }
 
 function publicTables(data) {
@@ -359,7 +373,7 @@ async function handleApi(req, res, data) {
     const body = await readJson(req)
     if (!body.ownerPassword || String(body.ownerPassword).length < 8) return send(res, 400, { error: 'Owner password must be at least 8 characters' })
     const owner = { id: id('user'), name: body.ownerName || 'Owner', username: body.ownerUsername || 'owner', role: 'OWNER', passwordHash: await hashPassword(body.ownerPassword), disabled: false }
-    data.restaurant = { ...data.restaurant, name: body.restaurantName || 'Restaurant', outlet: body.outletName || 'Main Outlet', phone: body.phone || '', address: body.address || '' }
+    data.restaurant = { ...data.restaurant, name: body.restaurantName || 'Restaurant', outlet: body.outletName || 'Main Outlet', phone: body.phone || '', address: body.address || '', gstNumber: body.gstNumber || '', gstBps: Math.max(0, Math.trunc(Number(body.gstBps || 0))) }
     data.users.push(owner)
     data.setupComplete = true
     audit(data, owner, 'OWNER_SETUP')
@@ -467,7 +481,8 @@ async function handleApi(req, res, data) {
   }
 
   if (route === 'GET /api/menu') {
-    return send(res, 200, { items: data.menu.filter(item => item.active), categories: [...new Set(data.menu.filter(i => i.active).map(i => i.category))] })
+    const gstBps = data.restaurant && data.restaurant.gstNumber && Number(data.restaurant.gstBps || 0) > 0 ? Math.trunc(Number(data.restaurant.gstBps)) : 0
+    return send(res, 200, { items: data.menu.filter(item => item.active).map(item => ({ ...item, taxBps: gstBps })), categories: [...new Set(data.menu.filter(i => i.active).map(i => i.category))] })
   }
 
   if (route === 'POST /api/menu') {
@@ -480,6 +495,20 @@ async function handleApi(req, res, data) {
     audit(data, owner, 'MENU_ITEM_CREATED', { itemId: item.id, name: item.name })
     saveData(data)
     return send(res, 200, { item })
+  }
+
+  if (route === 'PUT /api/restaurant') {
+    const owner = requireOwner(req, res, data)
+    if (!owner) return
+    const body = await readJson(req)
+    data.restaurant = {
+      ...data.restaurant,
+      gstNumber: String(body.gstNumber || '').trim().slice(0, 30),
+      gstBps: Math.max(0, Math.min(2800, Math.trunc(Number(body.gstBps || 0)))),
+    }
+    audit(data, owner, 'GST_SETUP_UPDATED', { gstNumber: data.restaurant.gstNumber ? 'SET' : 'BLANK', gstBps: data.restaurant.gstBps })
+    saveData(data)
+    return send(res, 200, { restaurant: data.restaurant })
   }
 
   if (route === 'GET /api/users') {
@@ -510,11 +539,12 @@ async function handleApi(req, res, data) {
   }
 
   if (route === 'GET /api/kots') {
-    return send(res, 200, { kots: data.kots.slice(-50).reverse() })
+    const visible = data.kots.filter(kot => !kot.tableId || !tableClearedAfter(data, kot.tableId, kot.createdAt))
+    return send(res, 200, { kots: withPrintCounts(visible.slice(-50).reverse(), 'KOT', data) })
   }
 
   if (route === 'GET /api/bills') {
-    return send(res, 200, { bills: data.bills.slice(-50).reverse() })
+    return send(res, 200, { bills: withPrintCounts(data.bills.slice(-50).reverse(), 'BILL', data) })
   }
 
   if (route === 'POST /api/kot') {
@@ -560,6 +590,9 @@ async function handleApi(req, res, data) {
     const collection = docKind === 'KOT' ? data.kots : docKind === 'BILL' ? data.bills : []
     const doc = collection.find(entry => entry.id === body.id)
     if (!docKind || !doc) return send(res, 404, { error: 'Printable document not found' })
+    if (docKind === 'KOT' && doc.tableId && tableClearedAfter(data, doc.tableId, doc.createdAt)) {
+      return send(res, 409, { error: 'Table is cleared. KOT reprint blocked.' })
+    }
     const previousCount = data.printEvents.filter(event => event.docKind === docKind && event.docId === doc.id).length
     const event = {
       id: id('print'),
@@ -644,6 +677,34 @@ async function handleApi(req, res, data) {
     const totalPaise = bills.reduce((sum, b) => sum + b.totals.grandTotalPaise, 0)
     const customPaise = bills.flatMap(b => b.items).filter(i => i.type === 'CUSTOM_ITEM').reduce((sum, i) => sum + i.totalPaise, 0)
     return send(res, 200, { date: today, bills, totalPaise, customPaise, billCount: bills.length, printEvents, reprintEvents, printCount: printEvents.length, reprintCount: reprintEvents.length })
+  }
+
+  if (route === 'GET /api/reports/theft') {
+    const owner = requireOwner(req, res, data)
+    if (!owner) return
+    const today = new Date().toISOString().slice(0, 10)
+    const todayAudit = data.audit.filter(event => event.at.slice(0, 10) === today)
+    const reprints = data.printEvents.filter(event => event.at.slice(0, 10) === today && event.action === 'REPRINT')
+    const customItems = data.bills
+      .filter(bill => bill.createdAt.slice(0, 10) === today)
+      .flatMap(bill => bill.items.filter(item => item.type === 'CUSTOM_ITEM').map(item => ({ bill: bill.number, table: bill.table, name: item.name, amountPaise: item.totalPaise, staff: bill.staff })))
+    const addedMenuItems = todayAudit.filter(event => event.action === 'MENU_ITEM_CREATED')
+    const orderChanges = todayAudit.filter(event => ['TABLE_ORDER_SAVED', 'TABLE_ORDER_CLEARED', 'TABLE_CLEARED_AFTER_PRINT', 'GST_SETUP_UPDATED'].includes(event.action))
+    return send(res, 200, {
+      date: today,
+      reprints,
+      customItems,
+      addedMenuItems,
+      orderChanges,
+      summary: {
+        reprints: reprints.length,
+        billReprints: reprints.filter(event => event.docKind === 'BILL').length,
+        kotReprints: reprints.filter(event => event.docKind === 'KOT').length,
+        customItems: customItems.length,
+        addedMenuItems: addedMenuItems.length,
+        orderChanges: orderChanges.length,
+      },
+    })
   }
 
   if (route === 'GET /api/export') {

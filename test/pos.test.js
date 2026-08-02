@@ -220,6 +220,28 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     const freed = tablesAfterClear.body.tables.find(table => table.id === tableId)
     assert.equal(freed.status, 'available')
 
+    const blockedClearedKotReprint = await jsonFetch(`${baseUrl}/api/prints`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ kind: 'KOT', id: kot.body.kot.id }),
+    })
+    assert.equal(blockedClearedKotReprint.res.status, 409)
+
+    const kotsAfterClear = await jsonFetch(`${baseUrl}/api/kots`, { headers: { Cookie: cookie } })
+    assert.equal(kotsAfterClear.res.status, 200)
+    assert.equal(kotsAfterClear.body.kots.some(entry => entry.id === kot.body.kot.id), false)
+
+    const gstSetup = await jsonFetch(`${baseUrl}/api/restaurant`, {
+      method: 'PUT',
+      headers: authHeaders,
+      body: JSON.stringify({ gstNumber: '27ABCDE1234F1Z5', gstBps: 500 }),
+    })
+    assert.equal(gstSetup.res.status, 200)
+    assert.equal(gstSetup.body.restaurant.gstBps, 500)
+
+    const taxableMenu = await jsonFetch(`${baseUrl}/api/menu`, { headers: { Cookie: cookie } })
+    assert.equal(taxableMenu.body.items[0].taxBps, 500)
+
     const directBill = await jsonFetch(`${baseUrl}/api/bill`, {
       method: 'POST',
       headers: authHeaders,
@@ -236,6 +258,10 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     assert.equal(report.body.reprintCount, 2)
     assert.equal(report.body.reprintEvents.length, 2)
 
+    const theftReport = await jsonFetch(`${baseUrl}/api/reports/theft`, { headers: { Cookie: cookie } })
+    assert.equal(theftReport.res.status, 200)
+    assert.equal(theftReport.body.summary.reprints, 2)
+
     const managerLogin = await jsonFetch(`${baseUrl}/api/login`, {
       method: 'POST',
       body: JSON.stringify({ username: 'manager', password: 'manager-pass' }),
@@ -245,6 +271,8 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     const managerReport = await jsonFetch(`${baseUrl}/api/reports/today`, { headers: { Cookie: managerCookie } })
     assert.equal(managerReport.res.status, 200)
     assert.equal(managerReport.body.billCount, 2)
+    const managerTheftReport = await jsonFetch(`${baseUrl}/api/reports/theft`, { headers: { Cookie: managerCookie } })
+    assert.equal(managerTheftReport.res.status, 403)
 
     const staffLogin = await jsonFetch(`${baseUrl}/api/login`, {
       method: 'POST',

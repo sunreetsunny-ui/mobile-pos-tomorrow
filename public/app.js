@@ -236,7 +236,10 @@ function receiptFor(kind, doc) {
   if (doc.totals) {
     lines.push('------------------------------')
     lines.push(`Subtotal ${money(doc.totals.subtotalPaise)}`)
-    lines.push(`Tax      ${money(doc.totals.taxPaise)}`)
+    if (state.status?.restaurant?.gstNumber && Number(state.status?.restaurant?.gstBps || 0) > 0) {
+      lines.push(`GSTIN    ${state.status.restaurant.gstNumber}`)
+      lines.push(`GST      ${money(doc.totals.taxPaise)}`)
+    }
     lines.push(`Total    ${money(doc.totals.grandTotalPaise)}`)
     lines.push(`Paid     ${money(doc.paidPaise)}`)
     lines.push(`Balance  ${money(doc.balancePaise)}`)
@@ -316,19 +319,22 @@ async function clearTableFromFloor(tableId, tableName) {
 }
 
 async function logPrint(kind, id) {
-  if (!kind || !id) return
+  if (!kind || !id) return true
   try {
     await api('/api/prints', { method: 'POST', body: JSON.stringify({ kind, id }) })
     await loadTables()
     await loadToday()
+    return true
   } catch (e) {
     state.error = e.message
+    render()
+    return false
   }
 }
 
 async function printLast() {
   if (!state.lastPrintable) return setMsg('', 'Nothing to print yet')
-  await logPrint(state.lastDoc?.kind, state.lastDoc?.id)
+  if (!await logPrint(state.lastDoc?.kind, state.lastDoc?.id)) return
   const box = $('#printBox')
   box.textContent = state.lastPrintable
   box.classList.add('printable')
@@ -448,6 +454,20 @@ async function addTable() {
   } catch (e) { setMsg('', e.message) }
 }
 
+async function saveGstSetup() {
+  try {
+    const res = await api('/api/restaurant', {
+      method: 'PUT',
+      body: JSON.stringify({
+        gstNumber: $('#gstNumber').value.trim(),
+        gstBps: Number($('#gstPercent').value || 0) * 100,
+      }),
+    })
+    state.status.restaurant = res.restaurant
+    setMsg('GST setup saved')
+  } catch (e) { setMsg('', e.message) }
+}
+
 async function renderReport() {
   try {
     const report = await api('/api/reports/today')
@@ -459,6 +479,7 @@ async function renderReport() {
         <div class="stat"><span>Prints</span><b>${report.printCount || 0}</b></div>
         <div class="stat"><span>Reprints</span><b>${report.reprintCount || 0}</b></div>
       </div>
+      ${state.user?.role === 'OWNER' ? '<button class="btn dark block" onclick="renderTheftReport()">Anti Theft</button>' : ''}
       <div class="panel">
         <b>Reprints</b>
         ${(report.reprintEvents || []).slice().reverse().map(p => `<div class="listrow"><b>${escapeHtml(p.docNumber)}</b><div class="meta">${escapeHtml(p.docKind)} - ${escapeHtml(p.table || 'No table')} - ${new Date(p.at).toLocaleTimeString()}</div></div>`).join('') || '<div class="sub">No reprints yet.</div>'}
@@ -467,6 +488,23 @@ async function renderReport() {
         <b>Today Bills</b>
         ${(report.bills || []).slice().reverse().map(b => `<div class="listrow"><b>${escapeHtml(b.number)}</b><div class="meta">${escapeHtml(b.paymentMethod)} - ${money(b.totals.grandTotalPaise)} - ${new Date(b.createdAt).toLocaleTimeString()}</div></div>`).join('') || '<div class="sub">No bills yet.</div>'}
       </div>`
+  } catch (e) { $('#reportBox').innerHTML = `<div class="error">${escapeHtml(e.message)}</div>` }
+}
+
+async function renderTheftReport() {
+  try {
+    const report = await api('/api/reports/theft')
+    $('#reportBox').innerHTML = `
+      <div class="command"><div><h1 class="title">Anti Theft</h1><div class="sub">Owner-only suspicious activity checks.</div></div><button class="btn secondary compact" onclick="renderReport()">Sales</button></div>
+      <div class="statGrid">
+        <div class="stat"><span>Reprints</span><b>${report.summary.reprints}</b></div>
+        <div class="stat"><span>Bill Reprint</span><b>${report.summary.billReprints}</b></div>
+        <div class="stat"><span>KOT Reprint</span><b>${report.summary.kotReprints}</b></div>
+        <div class="stat"><span>Custom</span><b>${report.summary.customItems}</b></div>
+      </div>
+      <div class="panel"><b>Reprints</b>${(report.reprints || []).slice().reverse().map(p => `<div class="listrow"><b>${escapeHtml(p.docNumber)}</b><div class="meta">${escapeHtml(p.docKind)} - ${escapeHtml(p.table || 'No table')} - ${escapeHtml(p.staff)} - ${new Date(p.at).toLocaleTimeString()}</div></div>`).join('') || '<div class="sub">No reprints.</div>'}</div>
+      <div class="panel"><b>Custom Items</b>${(report.customItems || []).map(i => `<div class="listrow"><b>${escapeHtml(i.name)}</b><div class="meta">${escapeHtml(i.bill)} - ${escapeHtml(i.table || 'No table')} - ${money(i.amountPaise)}</div></div>`).join('') || '<div class="sub">No custom items.</div>'}</div>
+      <div class="panel"><b>Changes</b>${(report.orderChanges || []).slice().reverse().map(e => `<div class="listrow"><b>${escapeHtml(e.action)}</b><div class="meta">${escapeHtml(e.actorName || '')} - ${new Date(e.at).toLocaleTimeString()}</div></div>`).join('') || '<div class="sub">No changes.</div>'}</div>`
   } catch (e) { $('#reportBox').innerHTML = `<div class="error">${escapeHtml(e.message)}</div>` }
 }
 
@@ -644,7 +682,7 @@ function listView(kind) {
       if (kind === 'kots') state.recentKots = docs
       else state.recentBills = docs
       const label = kind === 'kots' ? 'KOT' : 'BILL'
-      $(`#${kind}Box`).innerHTML = docs.map(d => `<div class="docrow"><div class="docTop"><div><b>${escapeHtml(d.number)}</b><div class="meta">${escapeHtml(d.table || 'No table')} - ${escapeHtml(d.staff)} - ${new Date(d.createdAt).toLocaleString()}</div></div><button class="btn secondary" onclick="printDoc('${label}','${escapeHtml(d.id)}')">Print</button></div><div class="docItems">${(d.items || []).map(item => `<span>${item.quantity || 1} x ${escapeHtml(item.name)}</span>`).join('')}</div>${d.totals ? `<div class="docTotal">Total ${money(d.totals.grandTotalPaise)}</div>` : ''}</div>`).join('') || '<div class="sub">Nothing yet.</div>'
+      $(`#${kind}Box`).innerHTML = docs.map(d => `<div class="docrow"><div class="docTop"><div><b>${escapeHtml(d.number)}</b><div class="meta">${escapeHtml(d.table || 'No table')} - ${escapeHtml(d.staff)} - ${new Date(d.createdAt).toLocaleString()} - Reprint ${d.reprintCount || 0}</div></div><button class="btn secondary" onclick="printDoc('${label}','${escapeHtml(d.id)}')">Print</button></div><div class="docItems">${(d.items || []).map(item => `<span>${item.quantity || 1} x ${escapeHtml(item.name)}</span>`).join('')}</div>${d.totals ? `<div class="docTotal">Total ${money(d.totals.grandTotalPaise)}</div>` : ''}</div>`).join('') || '<div class="sub">Nothing yet.</div>'
     } catch (e) { $(`#${kind}Box`).innerHTML = `<div class="error">${escapeHtml(e.message)}</div>` }
   }, 0)
   return `<main class="screen"><div class="command"><div><h1 class="title">${kind === 'kots' ? 'KOTs' : 'Bills'}</h1><div class="sub">Recent printable records.</div></div></div><div class="panel"><div id="${kind}Box" class="sub">Loading...</div></div><pre id="printBox" class="receipt hide"></pre></main>`
@@ -676,6 +714,13 @@ function manageView() {
       <div class="grid2"><input class="input" id="staffUsername" placeholder="Username"><select class="select" id="staffRole"><option>STAFF</option><option>MANAGER</option><option>OWNER</option></select></div>
       <input class="input" id="staffPassword" type="password" placeholder="Password, 6+ chars" style="margin-top:8px">
       <button class="btn dark block" onclick="addUser()">Add Staff</button>
+      <label class="label">GST Setup</label>
+      <div class="printerBox">
+        <input class="input" id="gstNumber" placeholder="GST number" value="${escapeHtml(state.status?.restaurant?.gstNumber || '')}">
+        <input class="input" id="gstPercent" type="number" min="0" step="0.01" placeholder="GST %" value="${escapeHtml((Number(state.status?.restaurant?.gstBps || 0) / 100).toString())}">
+        <button class="btn secondary block" onclick="saveGstSetup()">Save GST</button>
+        <div class="sub">If GST number is blank or GST is 0, GST will not show on bills and new bills will not charge tax.</div>
+      </div>
       <label class="label">Printer Setup</label>
       <div class="printerBox">
         <select class="select" id="printerPaper">
@@ -722,5 +767,5 @@ function render() {
   app.innerHTML = shell((views[state.tab] || orderView)())
 }
 
-Object.assign(window, { state, render, setupOwner, login, logout, addItemById, changeQty, addCustomItem, sendKot, makeBill, printLast, printDoc, receiptFor, addMenuItem, addTable, addUser, downloadExport, selectTable, saveTableOrder, setMeta, setMenuSearch, openParcel, clearCart, clearAfterBill, clearTableFromFloor, savePrinterSetup, testPrint })
+Object.assign(window, { state, render, setupOwner, login, logout, addItemById, changeQty, addCustomItem, sendKot, makeBill, printLast, printDoc, receiptFor, addMenuItem, addTable, addUser, downloadExport, selectTable, saveTableOrder, setMeta, setMenuSearch, openParcel, clearCart, clearAfterBill, clearTableFromFloor, savePrinterSetup, testPrint, saveGstSetup, renderTheftReport, renderReport })
 boot()
