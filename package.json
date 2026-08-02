@@ -1,0 +1,15 @@
+{
+  "name": "mobile-pos-tomorrow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Phone-first hosted restaurant POS web app",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test",
+    "check": "node --check server.js && node --check public/app.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

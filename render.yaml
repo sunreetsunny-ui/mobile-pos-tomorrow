@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: mobile-pos-tomorrow
+    env: docker
+    plan: starter
+    autoDeploy: false
+    healthCheckPath: /api/status
+    disk:
+      name: mobile-pos-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: COOKIE_SECURE
+        value: "1"
