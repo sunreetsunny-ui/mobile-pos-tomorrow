@@ -7,6 +7,7 @@ ENV DATA_DIR=/data
 
 COPY package.json ./
 COPY server.js ./
+COPY menu-seed.json ./
 COPY public ./public
 
 RUN mkdir -p /data
