@@ -313,6 +313,28 @@ button { touch-action: manipulation; }
 .docItems { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .docItems span { background: #f1f5f9; border: 1px solid var(--line); border-radius: 999px; padding: 5px 7px; font-size: 12px; font-weight: 800; }
 .docTotal { margin-top: 8px; font-weight: 900; color: var(--brand-dark); }
+.modalShade {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(15,23,42,.46);
+  display: flex;
+  align-items: flex-end;
+  padding: 14px;
+}
+.passSheet {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto 76px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  box-shadow: 0 18px 40px rgba(15,23,42,.24);
+}
+.passSheet h2 { margin: 4px 0 6px; font-size: 20px; letter-spacing: 0; }
+.passSheet p { margin: 0 0 12px; color: var(--muted); line-height: 1.4; }
+.passInput { font-size: 24px; font-weight: 900; text-align: center; letter-spacing: 0; }
 .right { text-align: right; }
 .muted { color: var(--muted); }
 .miniList { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }

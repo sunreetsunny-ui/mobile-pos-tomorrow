@@ -106,7 +106,7 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     const savedOrder = await jsonFetch(`${baseUrl}/api/tables/${encodeURIComponent(tableId)}/order`, {
       method: 'PUT',
       headers: authHeaders,
-      body: JSON.stringify({ items: [{ menuItemId, quantity: 2 }] }),
+      body: JSON.stringify({ passcode: '8199', items: [{ menuItemId, quantity: 2 }] }),
     })
     assert.equal(savedOrder.res.status, 200)
 
@@ -136,7 +136,7 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     const updatedOrder = await jsonFetch(`${baseUrl}/api/tables/${encodeURIComponent(tableId)}/order`, {
       method: 'PUT',
       headers: authHeaders,
-      body: JSON.stringify({ items: [{ menuItemId, quantity: 2 }, { menuItemId: secondMenuItemId, quantity: 1 }] }),
+      body: JSON.stringify({ passcode: '8199', items: [{ menuItemId, quantity: 2 }, { menuItemId: secondMenuItemId, quantity: 1 }] }),
     })
     assert.equal(updatedOrder.res.status, 200)
 
@@ -193,7 +193,7 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     const billReprint = await jsonFetch(`${baseUrl}/api/prints`, {
       method: 'POST',
       headers: authHeaders,
-      body: JSON.stringify({ kind: 'BILL', id: bill.body.bill.id, passcode: '8199' }),
+      body: JSON.stringify({ kind: 'BILL', id: bill.body.bill.id, passcode: '8199', forceReprint: true }),
     })
     assert.equal(billReprint.res.status, 200)
     assert.equal(billReprint.body.event.action, 'REPRINT')
@@ -207,12 +207,20 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     assert.equal(sameBillFetch.res.status, 200)
     assert.equal(sameBillFetch.body.bill.number, 'INV-345')
 
+    const blockedKotForceReprint = await jsonFetch(`${baseUrl}/api/prints`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ kind: 'KOT', id: kot.body.kot.id, forceReprint: true }),
+    })
+    assert.equal(blockedKotForceReprint.res.status, 423)
+
     const kotPrint = await jsonFetch(`${baseUrl}/api/prints`, {
       method: 'POST',
       headers: authHeaders,
-      body: JSON.stringify({ kind: 'KOT', id: kot.body.kot.id }),
+      body: JSON.stringify({ kind: 'KOT', id: kot.body.kot.id, passcode: '8199', forceReprint: true }),
     })
     assert.equal(kotPrint.res.status, 200)
+    assert.equal(kotPrint.body.event.action, 'REPRINT')
 
     const blockedKotReprint = await jsonFetch(`${baseUrl}/api/prints`, {
       method: 'POST',
@@ -224,7 +232,7 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     const kotReprint = await jsonFetch(`${baseUrl}/api/prints`, {
       method: 'POST',
       headers: authHeaders,
-      body: JSON.stringify({ kind: 'KOT', id: kot.body.kot.id, passcode: '8199' }),
+      body: JSON.stringify({ kind: 'KOT', id: kot.body.kot.id, passcode: '8199', forceReprint: true }),
     })
     assert.equal(kotReprint.res.status, 200)
     assert.equal(kotReprint.body.event.action, 'REPRINT')
@@ -291,12 +299,13 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     assert.equal(report.res.status, 200)
     assert.equal(report.body.billCount, 2)
     assert.equal(report.body.totalPaise, bill.body.bill.totals.grandTotalPaise + directBill.body.bill.totals.grandTotalPaise)
-    assert.equal(report.body.reprintCount, 2)
-    assert.equal(report.body.reprintEvents.length, 2)
+    assert.equal(report.body.reprintCount, 3)
+    assert.equal(report.body.reprintEvents.length, 3)
 
     const theftReport = await jsonFetch(`${baseUrl}/api/reports/theft`, { headers: { Cookie: cookie } })
     assert.equal(theftReport.res.status, 200)
-    assert.equal(theftReport.body.summary.reprints, 2)
+    assert.equal(theftReport.body.summary.reprints, 3)
+    assert.equal(theftReport.body.summary.protectedAdds, 2)
 
     const managerLogin = await jsonFetch(`${baseUrl}/api/login`, {
       method: 'POST',

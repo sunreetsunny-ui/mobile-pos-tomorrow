@@ -26,7 +26,10 @@ const state = {
   lastPrintable: '',
   message: '',
   error: '',
+  passModal: null,
 }
+
+let passResolve = null
 
 const money = (paise = 0) => `\u20b9${(Number(paise || 0) / 100).toFixed(2)}`
 const toPaise = (value) => Math.round((Number(value) || 0) * 100)
@@ -121,26 +124,42 @@ function lockedQty(item) {
   return Math.min(Number(item.kotPrintedQty || 0), Number(item.quantity || 0))
 }
 
-function requestKotUnlock() {
-  const pass = window.prompt('KOT printed item locked. Enter passcode.')
-  if (pass !== '8199') {
+function requestPass(title, detail) {
+  state.passModal = { title, detail }
+  render()
+  return new Promise(resolve => { passResolve = resolve })
+}
+
+function completePass(ok) {
+  const value = ok ? ($('#passcodeInput')?.value || '') : ''
+  state.passModal = null
+  const resolve = passResolve
+  passResolve = null
+  render()
+  if (!ok) return resolve && resolve('')
+  if (value !== '8199') {
     setMsg('', 'Wrong passcode')
-    return false
+    return resolve && resolve('')
   }
+  resolve && resolve(value)
+}
+
+async function requestKotUnlock() {
+  const pass = await requestPass('KOT change locked', 'Minus ya cancel karne ke liye manager passcode enter karein.')
+  if (!pass) return false
   state.orderUnlockPass = pass
   return true
 }
 
-function requestReprintPass() {
-  const pass = window.prompt('Reprint locked. Enter passcode.')
-  if (pass !== '8199') {
-    setMsg('', 'Wrong passcode')
-    return ''
-  }
+async function requestActionPass(title, detail) {
+  const pass = await requestPass(title, detail)
+  if (!pass) return ''
+  state.orderUnlockPass = pass
   return pass
 }
 
-function addItem(item) {
+async function addItem(item) {
+  if (!await requestActionPass('Add item locked', `${item.name} add karne ke liye passcode enter karein.`)) return
   const found = state.cart.find(line => line.id === item.id && line.type !== 'CUSTOM_ITEM')
   if (found) found.quantity += 1
   else state.cart.push({ ...item, quantity: 1 })
@@ -159,22 +178,22 @@ function setMenuSearch(value) {
   if (target) target.innerHTML = menuResultsHtml()
 }
 
-function addItemById(itemId) {
+async function addItemById(itemId) {
   const item = state.menu.find(entry => entry.id === itemId)
-  if (item) addItem(item)
+  if (item) await addItem(item)
 }
 
-function changeQty(index, delta) {
+async function changeQty(index, delta) {
   const line = state.cart[index]
   if (!line) return
-  if (delta < 0 && line.quantity <= lockedQty(line) && !requestKotUnlock()) return
+  if (delta < 0 && !await requestKotUnlock()) return
   line.quantity += delta
   if (line.quantity <= 0) state.cart.splice(index, 1)
   render()
 }
 
-function clearCart() {
-  if (state.cart.some(line => lockedQty(line) > 0) && !requestKotUnlock()) return
+async function clearCart() {
+  if (state.cart.length && !await requestKotUnlock()) return
   state.cart = []
   state.lastBill = null
   render()
@@ -194,11 +213,14 @@ function addCustomItem() {
   const price = toPaise($('#customPrice').value)
   const reason = $('#customReason').value.trim()
   if (!name || price <= 0 || !reason) return setMsg('', 'Custom item needs name, price, and reason')
-  state.cart.push({ id: `custom-${Date.now()}`, type: 'CUSTOM_ITEM', name, pricePaise: price, taxBps: 500, quantity: 1, reason })
-  $('#customName').value = ''
-  $('#customPrice').value = ''
-  $('#customReason').value = ''
-  render()
+  requestActionPass('Custom item locked', `${name} custom item add karne ke liye passcode enter karein.`).then(pass => {
+    if (!pass) return
+    state.cart.push({ id: `custom-${Date.now()}`, type: 'CUSTOM_ITEM', name, pricePaise: price, taxBps: 500, quantity: 1, reason })
+    $('#customName').value = ''
+    $('#customPrice').value = ''
+    $('#customReason').value = ''
+    render()
+  })
 }
 
 async function selectTable(tableId) {
@@ -356,10 +378,10 @@ async function clearTableFromFloor(tableId, tableName) {
   } catch (e) { setMsg('', e.message) }
 }
 
-async function logPrint(kind, id, passcode = '') {
+async function logPrint(kind, id, passcode = '', forceReprint = false) {
   if (!kind || !id) return true
   try {
-    await api('/api/prints', { method: 'POST', body: JSON.stringify({ kind, id, passcode }) })
+    await api('/api/prints', { method: 'POST', body: JSON.stringify({ kind, id, passcode, forceReprint }) })
     await loadTables()
     await loadToday()
     return true
@@ -370,34 +392,34 @@ async function logPrint(kind, id, passcode = '') {
   }
 }
 
-async function printLast(requirePass = false) {
+async function printLast(requirePass = false, forceReprint = requirePass) {
   if (!state.lastPrintable) return setMsg('', 'Nothing to print yet')
-  const passcode = requirePass ? requestReprintPass() : ''
+  const passcode = requirePass ? await requestPass('Reprint locked', 'Reprint karne ke liye manager passcode enter karein.') : ''
   if (requirePass && !passcode) return
-  if (!await logPrint(state.lastDoc?.kind, state.lastDoc?.id, passcode)) return
+  if (!await logPrint(state.lastDoc?.kind, state.lastDoc?.id, passcode, forceReprint)) return
   const box = $('#printBox')
   box.textContent = state.lastPrintable
   box.classList.add('printable')
   window.print()
 }
 
-function printDoc(kind, id, requirePass = false) {
+function printDoc(kind, id, requirePass = false, forceReprint = requirePass) {
   const doc = (kind === 'KOT' ? state.recentKots : state.recentBills).find(entry => entry.id === id)
   if (!doc) return setMsg('', 'Document not found')
   state.lastPrintable = receiptFor(kind, doc)
   state.lastDoc = { kind, id: doc.id }
   render()
-  setTimeout(() => printLast(requirePass), 50)
+  setTimeout(() => printLast(requirePass, forceReprint), 50)
 }
 
-async function printBillById(id, requirePass = false) {
+async function printBillById(id, requirePass = false, forceReprint = requirePass) {
   try {
     const res = await api(`/api/bills/${encodeURIComponent(id)}`)
     state.lastPrintable = receiptFor('BILL', res.bill)
     if (state.selectedTableId && state.tables.some(table => table.pendingPrintedBillId === res.bill.id)) state.lastBill = res.bill
     state.lastDoc = { kind: 'BILL', id: res.bill.id }
     render()
-    setTimeout(() => printLast(requirePass), 50)
+    setTimeout(() => printLast(requirePass, forceReprint), 50)
   } catch (e) { setMsg('', e.message) }
 }
 
@@ -545,17 +567,25 @@ async function renderReport() {
 async function renderTheftReport() {
   try {
     const report = await api('/api/reports/theft')
+    const protectedRows = (report.protectedOrderEvents || []).slice().reverse()
+    const actionLabel = action => ({
+      ORDER_ITEM_ADDED: 'Added Item',
+      ORDER_ITEM_REDUCED: 'KOT Minus',
+      ORDER_ITEM_CANCELLED: 'KOT Cancel',
+      CUSTOM_ITEM_ADDED: 'Custom Item',
+    }[action] || action)
+    const itemText = event => (event.details?.items || []).map(item => `${item.quantity || 1} x ${item.name}`).join(', ')
     $('#reportBox').innerHTML = `
-      <div class="command"><div><h1 class="title">Anti Theft</h1><div class="sub">Owner-only suspicious activity checks.</div></div><button class="btn secondary compact" onclick="renderReport()">Sales</button></div>
+      <div class="command"><div><h1 class="title">Anti Theft</h1><div class="sub">Owner-only protected actions.</div></div><button class="btn secondary compact" onclick="renderReport()">Sales</button></div>
       <div class="statGrid">
         <div class="stat"><span>Reprints</span><b>${report.summary.reprints}</b></div>
-        <div class="stat"><span>Bill Reprint</span><b>${report.summary.billReprints}</b></div>
-        <div class="stat"><span>KOT Reprint</span><b>${report.summary.kotReprints}</b></div>
-        <div class="stat"><span>Custom</span><b>${report.summary.customItems}</b></div>
+        <div class="stat"><span>Added</span><b>${report.summary.protectedAdds || 0}</b></div>
+        <div class="stat"><span>Minus/Cancel</span><b>${(report.summary.protectedReductions || 0) + (report.summary.protectedCancels || 0)}</b></div>
+        <div class="stat"><span>Custom</span><b>${report.summary.protectedCustomItems || 0}</b></div>
       </div>
       <div class="panel"><b>Reprints</b>${(report.reprints || []).slice().reverse().map(p => `<div class="listrow"><b>${escapeHtml(p.docNumber)}</b><div class="meta">${escapeHtml(p.docKind)} - ${escapeHtml(p.table || 'No table')} - ${escapeHtml(p.staff)} - ${new Date(p.at).toLocaleTimeString()}</div></div>`).join('') || '<div class="sub">No reprints.</div>'}</div>
-      <div class="panel"><b>Custom Items</b>${(report.customItems || []).map(i => `<div class="listrow"><b>${escapeHtml(i.name)}</b><div class="meta">${escapeHtml(i.bill)} - ${escapeHtml(i.table || 'No table')} - ${money(i.amountPaise)}</div></div>`).join('') || '<div class="sub">No custom items.</div>'}</div>
-      <div class="panel"><b>Changes</b>${(report.orderChanges || []).slice().reverse().map(e => `<div class="listrow"><b>${escapeHtml(e.action)}</b><div class="meta">${escapeHtml(e.actorName || '')} - ${new Date(e.at).toLocaleTimeString()}</div></div>`).join('') || '<div class="sub">No changes.</div>'}</div>`
+      <div class="panel"><b>Protected Item Activity</b>${protectedRows.map(e => `<div class="listrow"><b>${escapeHtml(actionLabel(e.action))}</b><div class="meta">${escapeHtml(itemText(e) || 'No item')} - ${escapeHtml(e.actorName || '')} - ${new Date(e.at).toLocaleTimeString()}</div></div>`).join('') || '<div class="sub">No protected item activity.</div>'}</div>
+      <div class="panel"><b>Table Changes</b>${(report.orderChanges || []).slice().reverse().map(e => `<div class="listrow"><b>${escapeHtml(e.action)}</b><div class="meta">${escapeHtml(e.actorName || '')} - ${new Date(e.at).toLocaleTimeString()}</div></div>`).join('') || '<div class="sub">No table changes.</div>'}</div>`
   } catch (e) { $('#reportBox').innerHTML = `<div class="error">${escapeHtml(e.message)}</div>` }
 }
 
@@ -760,7 +790,7 @@ function listView(kind) {
       if (kind === 'kots') state.recentKots = docs
       else state.recentBills = docs
       const label = kind === 'kots' ? 'KOT' : 'BILL'
-      $(`#${kind}Box`).innerHTML = docs.map(d => `<div class="docrow"><div class="docTop"><div><b>${escapeHtml(d.number)}</b><div class="meta">${escapeHtml(d.table || 'No table')} - ${escapeHtml(d.staff)} - ${new Date(d.createdAt).toLocaleString()} - Reprint ${d.reprintCount || 0}</div></div><button class="btn secondary" onclick="printDoc('${label}','${escapeHtml(d.id)}', ${Number(d.printCount || 0) > 0})">${Number(d.printCount || 0) > 0 ? 'Reprint' : 'Print'}</button></div><div class="docItems">${(d.items || []).map(item => `<span>${item.quantity || 1} x ${escapeHtml(item.name)}</span>`).join('')}</div>${d.totals ? `<div class="docTotal">Total ${money(d.totals.grandTotalPaise)}</div>` : ''}</div>`).join('') || '<div class="sub">Nothing yet.</div>'
+      $(`#${kind}Box`).innerHTML = docs.map(d => `<div class="docrow"><div class="docTop"><div><b>${escapeHtml(d.number)}</b><div class="meta">${escapeHtml(d.table || 'No table')} - ${escapeHtml(d.staff)} - ${new Date(d.createdAt).toLocaleString()} - Reprint ${d.reprintCount || 0}</div></div><button class="btn secondary" onclick="printDoc('${label}','${escapeHtml(d.id)}', true, true)">Reprint</button></div><div class="docItems">${(d.items || []).map(item => `<span>${item.quantity || 1} x ${escapeHtml(item.name)}</span>`).join('')}</div>${d.totals ? `<div class="docTotal">Total ${money(d.totals.grandTotalPaise)}</div>` : ''}</div>`).join('') || '<div class="sub">Nothing yet.</div>'
     } catch (e) { $(`#${kind}Box`).innerHTML = `<div class="error">${escapeHtml(e.message)}</div>` }
   }, 0)
   return `<main class="screen"><div class="command"><div><h1 class="title">${kind === 'kots' ? 'KOTs' : 'Bills'}</h1><div class="sub">Recent printable records.</div></div></div><div class="panel"><div id="${kind}Box" class="sub">Loading...</div></div><pre id="printBox" class="receipt hide"></pre></main>`
@@ -826,13 +856,29 @@ function messages() {
   return `${state.error ? `<div class="error">${escapeHtml(state.error)}</div>` : ''}${state.message ? `<div class="success">${escapeHtml(state.message)}</div>` : ''}`
 }
 
+function passModalView() {
+  if (!state.passModal) return ''
+  return `<div class="modalShade">
+    <div class="passSheet">
+      <div class="kicker">MANAGER PASSCODE</div>
+      <h2>${escapeHtml(state.passModal.title)}</h2>
+      <p>${escapeHtml(state.passModal.detail || 'Enter passcode to continue.')}</p>
+      <input class="input passInput" id="passcodeInput" type="password" inputmode="numeric" autocomplete="off" autofocus onkeydown="if(event.key==='Enter')completePass(true)">
+      <div class="actionRow">
+        <button class="btn secondary" onclick="completePass(false)">Cancel</button>
+        <button class="btn dark" onclick="completePass(true)">Unlock</button>
+      </div>
+    </div>
+  </div>`
+}
+
 function shell(content) {
   const nav = [
     ['tables', 'Floor'], ['order', 'Bill'], ['kots', 'KOT'], ['bills', 'Bills'],
     ...(canSeeSales() ? [['report', 'Report']] : []),
     ['manage', 'Setup'],
   ]
-  return `<div class="app"><header class="topbar"><div class="brand"><b>${escapeHtml(state.status?.restaurant?.name || 'Mobile POS')}</b><span>${escapeHtml(state.user?.name || '')} - ${new Date().toLocaleDateString()}</span></div><button class="pill" onclick="logout()">Logout</button></header>${content}<nav class="tabs">${[
+  return `<div class="app"><header class="topbar"><div class="brand"><b>${escapeHtml(state.status?.restaurant?.name || 'Mobile POS')}</b><span>${escapeHtml(state.user?.name || '')} - ${new Date().toLocaleDateString()}</span></div><button class="pill" onclick="logout()">Logout</button></header>${content}${passModalView()}<nav class="tabs">${[
   ].concat(nav).map(([key, label]) => `<button class="tab ${state.tab === key ? 'active' : ''}" onclick="state.tab='${key}';render()">${label}</button>`).join('')}</nav></div>`
 }
 
@@ -845,5 +891,5 @@ function render() {
   app.innerHTML = shell((views[state.tab] || orderView)())
 }
 
-Object.assign(window, { state, render, setupOwner, login, logout, addItemById, changeQty, addCustomItem, sendKot, makeBill, printLast, printDoc, printBillById, receiptFor, addMenuItem, addTable, addUser, downloadExport, selectTable, openPrintedTable, saveTableOrder, setMeta, setMenuSearch, openParcel, clearCart, clearAfterBill, clearTableFromFloor, savePrinterSetup, testPrint, saveGstSetup, renderTheftReport, renderReport })
+Object.assign(window, { state, render, setupOwner, login, logout, addItemById, changeQty, addCustomItem, sendKot, makeBill, printLast, printDoc, printBillById, receiptFor, addMenuItem, addTable, addUser, downloadExport, selectTable, openPrintedTable, saveTableOrder, setMeta, setMenuSearch, openParcel, clearCart, clearAfterBill, clearTableFromFloor, savePrinterSetup, testPrint, saveGstSetup, renderTheftReport, renderReport, completePass })
 boot()

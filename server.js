@@ -313,6 +313,54 @@ function assertKotLockedLinesAllowed(previousItems = [], nextItems = [], passcod
   }
 }
 
+function orderChangeSummary(previousItems = [], nextItems = []) {
+  const previousByKey = new Map(previousItems.map(item => [lineKey(item), item]))
+  const nextByKey = new Map(nextItems.map(item => [lineKey(item), item]))
+  const added = []
+  const reduced = []
+  const cancelled = []
+  const custom = []
+  for (const item of nextItems) {
+    const before = previousByKey.get(lineKey(item))
+    if (item.type === 'CUSTOM_ITEM') custom.push(item)
+    else if (!before) added.push(item)
+    else if (Number(item.quantity || 0) > Number(before.quantity || 0)) added.push({ ...item, quantity: Number(item.quantity || 0) - Number(before.quantity || 0) })
+  }
+  for (const item of previousItems) {
+    const after = nextByKey.get(lineKey(item))
+    if (!after) cancelled.push(item)
+    else if (Number(after.quantity || 0) < Number(item.quantity || 0)) reduced.push({ ...item, quantity: Number(item.quantity || 0) - Number(after.quantity || 0) })
+  }
+  return { added, reduced, cancelled, custom }
+}
+
+function assertSensitiveOrderChangeAllowed(previousItems = [], nextItems = [], passcode = '') {
+  const summary = orderChangeSummary(previousItems, nextItems)
+  const needsPass = summary.added.length || summary.reduced.length || summary.cancelled.length || summary.custom.length
+  if (needsPass && String(passcode) !== KOT_UNLOCK_PASS) {
+    throw new Error('Passcode required for add, custom, minus, or cancel.')
+  }
+  return summary
+}
+
+function auditSensitiveOrderChange(data, actor, tableId, previousItems = [], nextItems = [], passcode = '') {
+  if (String(passcode) !== KOT_UNLOCK_PASS) return
+  const summary = orderChangeSummary(previousItems, nextItems)
+  const entries = [
+    ['ORDER_ITEM_ADDED', summary.added],
+    ['ORDER_ITEM_REDUCED', summary.reduced],
+    ['ORDER_ITEM_CANCELLED', summary.cancelled],
+    ['CUSTOM_ITEM_ADDED', summary.custom],
+  ]
+  for (const [action, items] of entries) {
+    if (!items.length) continue
+    audit(data, actor, action, {
+      tableId,
+      items: items.map(item => ({ name: item.name, quantity: item.quantity, type: item.type, amountPaise: item.pricePaise })),
+    })
+  }
+}
+
 function printedBillForTable(data, tableId, sinceAt = '') {
   const bills = data.bills
     .filter(bill => bill.tableId === tableId && (!sinceAt || String(bill.createdAt) >= String(sinceAt)))
@@ -467,12 +515,15 @@ async function handleApi(req, res, data) {
     const body = await readJson(req)
     const items = (body.items || []).map(input => safeItemFromMenu(data, input))
     const existing = data.runningOrders.find(entry => entry.tableId === tableId)
+    const previousItems = (existing?.items || []).map(item => ({ ...item }))
     try {
-      assertKotLockedLinesAllowed(existing && existing.items, items, body.passcode)
+      assertSensitiveOrderChangeAllowed(previousItems, items, body.passcode)
+      assertKotLockedLinesAllowed(previousItems, items, body.passcode)
     } catch (e) {
       return send(res, 423, { error: e.message })
     }
     const order = upsertRunningOrder(data, tableId, items, user)
+    auditSensitiveOrderChange(data, user, tableId, previousItems, items, body.passcode)
     saveData(data)
     return send(res, 200, { table, order })
   }
@@ -575,12 +626,15 @@ async function handleApi(req, res, data) {
     let mode = body.mode === 'FULL' ? 'FULL' : 'NEW'
     if (table) {
       const existing = data.runningOrders.find(entry => entry.tableId === table.id)
+      const previousItems = (existing?.items || []).map(item => ({ ...item }))
       try {
-        assertKotLockedLinesAllowed(existing && existing.items, items, body.passcode)
+        assertSensitiveOrderChangeAllowed(previousItems, items, body.passcode)
+        assertKotLockedLinesAllowed(previousItems, items, body.passcode)
       } catch (e) {
         return send(res, 423, { error: e.message })
       }
       const order = upsertRunningOrder(data, table.id, items, user)
+      auditSensitiveOrderChange(data, user, table.id, previousItems, items, body.passcode)
       if (mode === 'NEW') {
         kotItems = (order.items || [])
           .map(item => ({ ...item, quantity: Math.max(0, Number(item.quantity || 0) - Number(item.kotPrintedQty || 0)) }))
@@ -612,7 +666,8 @@ async function handleApi(req, res, data) {
       return send(res, 409, { error: 'Table is cleared. KOT reprint blocked.' })
     }
     const previousCount = data.printEvents.filter(event => event.docKind === docKind && event.docId === doc.id).length
-    if (previousCount && String(body.passcode || '') !== KOT_UNLOCK_PASS) {
+    const forceReprint = body.forceReprint === true
+    if ((previousCount || forceReprint) && String(body.passcode || '') !== KOT_UNLOCK_PASS) {
       return send(res, 423, { error: 'Reprint passcode required.' })
     }
     const event = {
@@ -622,7 +677,7 @@ async function handleApi(req, res, data) {
       docNumber: doc.number,
       tableId: doc.tableId || '',
       table: doc.table || '',
-      action: previousCount ? 'REPRINT' : 'PRINT',
+      action: previousCount || forceReprint ? 'REPRINT' : 'PRINT',
       at: nowIso(),
       staff: user.name,
     }
@@ -640,11 +695,13 @@ async function handleApi(req, res, data) {
     if (body.tableId && !table) return send(res, 404, { error: 'Table not found' })
     if (table) {
       const existing = data.runningOrders.find(entry => entry.tableId === table.id)
+      const previousItems = (existing?.items || []).map(item => ({ ...item }))
       if (printedBillForTable(data, table.id, existing && existing.updatedAt)) {
         return send(res, 409, { error: 'Bill already printed. Clear table before making a new bill.' })
       }
       try {
-        assertKotLockedLinesAllowed(existing && existing.items, items, body.passcode)
+        assertSensitiveOrderChangeAllowed(previousItems, items, body.passcode)
+        assertKotLockedLinesAllowed(previousItems, items, body.passcode)
       } catch (e) {
         return send(res, 423, { error: e.message })
       }
@@ -654,7 +711,9 @@ async function handleApi(req, res, data) {
     if (paidPaise < totals.grandTotalPaise) return send(res, 400, { error: 'Paid amount is less than bill total' })
     let autoKot = null
     if (table) {
+      const previousItems = (data.runningOrders.find(entry => entry.tableId === table.id)?.items || []).map(item => ({ ...item }))
       const order = upsertRunningOrder(data, table.id, items, user)
+      auditSensitiveOrderChange(data, user, table.id, previousItems, items, body.passcode)
       const autoKotItems = (order.items || [])
         .map(item => ({ ...item, quantity: Math.max(0, Number(item.quantity || 0) - Number(item.kotPrintedQty || 0)) }))
         .filter(item => item.quantity > 0)
@@ -713,12 +772,14 @@ async function handleApi(req, res, data) {
       .filter(bill => bill.createdAt.slice(0, 10) === today)
       .flatMap(bill => bill.items.filter(item => item.type === 'CUSTOM_ITEM').map(item => ({ bill: bill.number, table: bill.table, name: item.name, amountPaise: item.totalPaise, staff: bill.staff })))
     const addedMenuItems = todayAudit.filter(event => event.action === 'MENU_ITEM_CREATED')
+    const protectedOrderEvents = todayAudit.filter(event => ['ORDER_ITEM_ADDED', 'ORDER_ITEM_REDUCED', 'ORDER_ITEM_CANCELLED', 'CUSTOM_ITEM_ADDED'].includes(event.action))
     const orderChanges = todayAudit.filter(event => ['TABLE_ORDER_SAVED', 'TABLE_ORDER_CLEARED', 'TABLE_CLEARED_AFTER_PRINT', 'GST_SETUP_UPDATED'].includes(event.action))
     return send(res, 200, {
       date: today,
       reprints,
       customItems,
       addedMenuItems,
+      protectedOrderEvents,
       orderChanges,
       summary: {
         reprints: reprints.length,
@@ -726,6 +787,10 @@ async function handleApi(req, res, data) {
         kotReprints: reprints.filter(event => event.docKind === 'KOT').length,
         customItems: customItems.length,
         addedMenuItems: addedMenuItems.length,
+        protectedAdds: protectedOrderEvents.filter(event => event.action === 'ORDER_ITEM_ADDED').length,
+        protectedCustomItems: protectedOrderEvents.filter(event => event.action === 'CUSTOM_ITEM_ADDED').length,
+        protectedReductions: protectedOrderEvents.filter(event => event.action === 'ORDER_ITEM_REDUCED').length,
+        protectedCancels: protectedOrderEvents.filter(event => event.action === 'ORDER_ITEM_CANCELLED').length,
         orderChanges: orderChanges.length,
       },
     })
