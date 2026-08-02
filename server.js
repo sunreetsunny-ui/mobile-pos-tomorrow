@@ -18,6 +18,21 @@ const loginFailures = new Map()
 function nowIso() { return new Date().toISOString() }
 function id(prefix) { return `${prefix}_${crypto.randomUUID()}` }
 
+function displayNumber(kind, sequence, at = new Date()) {
+  const date = new Date(at)
+  const yy = String(date.getFullYear()).slice(-2)
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  const salt = kind === 'KOT' ? 137 : 491
+  const mixed = ((Number(sequence) * 73 + salt) % 10000 + 10000) % 10000
+  return `${kind}-${yy}${mm}${dd}-${String(mixed).padStart(4, '0')}`
+}
+
+function nextDocNumber(data, kind) {
+  if (kind === 'KOT') return displayNumber('KOT', ++data.sequences.kot)
+  return displayNumber('INV', ++data.sequences.invoice)
+}
+
 function defaultData() {
   return {
     setupComplete: false,
@@ -577,7 +592,7 @@ async function handleApi(req, res, data) {
         return { ...item, kotPrintedQty: nextPrinted }
       })
     }
-    const kot = { id: id('kot'), number: `KOT-${String(++data.sequences.kot).padStart(5, '0')}`, tableId: table && table.id, table: table ? table.name : (body.table || ''), orderType: body.orderType || 'DINE_IN', mode, items: kotItems, note: body.note || '', createdAt: nowIso(), staff: user.name }
+    const kot = { id: id('kot'), number: nextDocNumber(data, 'KOT'), tableId: table && table.id, table: table ? table.name : (body.table || ''), orderType: body.orderType || 'DINE_IN', mode, items: kotItems, note: body.note || '', createdAt: nowIso(), staff: user.name }
     data.kots.push(kot)
     audit(data, user, 'KOT_CREATED', { kotId: kot.id, number: kot.number, customItems: items.filter(i => i.type === 'CUSTOM_ITEM').length })
     saveData(data)
@@ -635,20 +650,20 @@ async function handleApi(req, res, data) {
         .map(item => ({ ...item, quantity: Math.max(0, Number(item.quantity || 0) - Number(item.kotPrintedQty || 0)) }))
         .filter(item => item.quantity > 0)
       if (autoKotItems.length) {
-        autoKot = { id: id('kot'), number: `KOT-${String(++data.sequences.kot).padStart(5, '0')}`, tableId: table.id, table: table.name, orderType: body.orderType || 'DINE_IN', mode: 'AUTO_BILL', items: autoKotItems, note: 'Auto KOT from bill', createdAt: nowIso(), staff: user.name }
+        autoKot = { id: id('kot'), number: nextDocNumber(data, 'KOT'), tableId: table.id, table: table.name, orderType: body.orderType || 'DINE_IN', mode: 'AUTO_BILL', items: autoKotItems, note: 'Auto KOT from bill', createdAt: nowIso(), staff: user.name }
         data.kots.push(autoKot)
         const sent = new Map(autoKotItems.map(item => [lineKey(item), Number(item.quantity || 0)]))
         order.items = order.items.map(item => ({ ...item, kotPrintedQty: Math.min(item.quantity, Number(item.kotPrintedQty || 0) + (sent.get(lineKey(item)) || 0)) }))
         audit(data, user, 'AUTO_KOT_CREATED', { kotId: autoKot.id, number: autoKot.number, billSource: true })
       }
     } else {
-      autoKot = { id: id('kot'), number: `KOT-${String(++data.sequences.kot).padStart(5, '0')}`, tableId: null, table: body.table || '', orderType: body.orderType || 'TAKEAWAY', mode: 'AUTO_BILL', items, note: 'Auto KOT from direct bill', createdAt: nowIso(), staff: user.name }
+      autoKot = { id: id('kot'), number: nextDocNumber(data, 'KOT'), tableId: null, table: body.table || '', orderType: body.orderType || 'TAKEAWAY', mode: 'AUTO_BILL', items, note: 'Auto KOT from direct bill', createdAt: nowIso(), staff: user.name }
       data.kots.push(autoKot)
       audit(data, user, 'AUTO_KOT_CREATED', { kotId: autoKot.id, number: autoKot.number, billSource: true })
     }
     const bill = {
       id: id('bill'),
-      number: `INV-${String(++data.sequences.invoice).padStart(5, '0')}`,
+      number: nextDocNumber(data, 'INV'),
       tableId: table && table.id,
       table: table ? table.name : (body.table || ''),
       orderType: body.orderType || 'DINE_IN',

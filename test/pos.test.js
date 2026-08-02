@@ -122,6 +122,7 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     })
     assert.equal(kot.res.status, 200)
     assert.match(kot.body.kot.number, /^KOT-/)
+    assert.doesNotMatch(kot.body.kot.number, /^KOT-\d{5}$/)
     assert.equal(kot.body.kot.table, 'Garden 1')
     assert.equal(kot.body.kot.items.length, 1)
     assert.equal(kot.body.kot.items[0].quantity, 2)
@@ -163,6 +164,7 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     })
     assert.equal(bill.res.status, 200)
     assert.match(bill.body.bill.number, /^INV-/)
+    assert.doesNotMatch(bill.body.bill.number, /^INV-\d{5}$/)
 
     const tablesAfterBill = await jsonFetch(`${baseUrl}/api/tables`, { headers: { Cookie: cookie } })
     const stillOccupied = tablesAfterBill.body.tables.find(table => table.id === tableId)
@@ -191,6 +193,11 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     assert.equal(billReprint.res.status, 200)
     assert.equal(billReprint.body.event.action, 'REPRINT')
 
+    const billsAfterReprint = await jsonFetch(`${baseUrl}/api/bills`, { headers: { Cookie: cookie } })
+    assert.equal(billsAfterReprint.res.status, 200)
+    assert.equal(billsAfterReprint.body.bills.filter(entry => entry.id === bill.body.bill.id).length, 1)
+    assert.equal(billsAfterReprint.body.bills.find(entry => entry.id === bill.body.bill.id).number, bill.body.bill.number)
+
     const kotPrint = await jsonFetch(`${baseUrl}/api/prints`, {
       method: 'POST',
       headers: authHeaders,
@@ -205,6 +212,11 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     })
     assert.equal(kotReprint.res.status, 200)
     assert.equal(kotReprint.body.event.action, 'REPRINT')
+
+    const kotsAfterReprint = await jsonFetch(`${baseUrl}/api/kots`, { headers: { Cookie: cookie } })
+    assert.equal(kotsAfterReprint.res.status, 200)
+    assert.equal(kotsAfterReprint.body.kots.filter(entry => entry.id === kot.body.kot.id).length, 1)
+    assert.equal(kotsAfterReprint.body.kots.find(entry => entry.id === kot.body.kot.id).number, kot.body.kot.number)
 
     const tablesAfterPrint = await jsonFetch(`${baseUrl}/api/tables`, { headers: { Cookie: cookie } })
     const clearable = tablesAfterPrint.body.tables.find(table => table.id === tableId)
