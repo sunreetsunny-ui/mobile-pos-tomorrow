@@ -612,6 +612,9 @@ async function handleApi(req, res, data) {
       return send(res, 409, { error: 'Table is cleared. KOT reprint blocked.' })
     }
     const previousCount = data.printEvents.filter(event => event.docKind === docKind && event.docId === doc.id).length
+    if (previousCount && String(body.passcode || '') !== KOT_UNLOCK_PASS) {
+      return send(res, 423, { error: 'Reprint passcode required.' })
+    }
     const event = {
       id: id('print'),
       docKind,

@@ -131,6 +131,15 @@ function requestKotUnlock() {
   return true
 }
 
+function requestReprintPass() {
+  const pass = window.prompt('Reprint locked. Enter passcode.')
+  if (pass !== '8199') {
+    setMsg('', 'Wrong passcode')
+    return ''
+  }
+  return pass
+}
+
 function addItem(item) {
   const found = state.cart.find(line => line.id === item.id && line.type !== 'CUSTOM_ITEM')
   if (found) found.quantity += 1
@@ -347,10 +356,10 @@ async function clearTableFromFloor(tableId, tableName) {
   } catch (e) { setMsg('', e.message) }
 }
 
-async function logPrint(kind, id) {
+async function logPrint(kind, id, passcode = '') {
   if (!kind || !id) return true
   try {
-    await api('/api/prints', { method: 'POST', body: JSON.stringify({ kind, id }) })
+    await api('/api/prints', { method: 'POST', body: JSON.stringify({ kind, id, passcode }) })
     await loadTables()
     await loadToday()
     return true
@@ -361,32 +370,34 @@ async function logPrint(kind, id) {
   }
 }
 
-async function printLast() {
+async function printLast(requirePass = false) {
   if (!state.lastPrintable) return setMsg('', 'Nothing to print yet')
-  if (!await logPrint(state.lastDoc?.kind, state.lastDoc?.id)) return
+  const passcode = requirePass ? requestReprintPass() : ''
+  if (requirePass && !passcode) return
+  if (!await logPrint(state.lastDoc?.kind, state.lastDoc?.id, passcode)) return
   const box = $('#printBox')
   box.textContent = state.lastPrintable
   box.classList.add('printable')
   window.print()
 }
 
-function printDoc(kind, id) {
+function printDoc(kind, id, requirePass = false) {
   const doc = (kind === 'KOT' ? state.recentKots : state.recentBills).find(entry => entry.id === id)
   if (!doc) return setMsg('', 'Document not found')
   state.lastPrintable = receiptFor(kind, doc)
   state.lastDoc = { kind, id: doc.id }
   render()
-  setTimeout(printLast, 50)
+  setTimeout(() => printLast(requirePass), 50)
 }
 
-async function printBillById(id) {
+async function printBillById(id, requirePass = false) {
   try {
     const res = await api(`/api/bills/${encodeURIComponent(id)}`)
     state.lastPrintable = receiptFor('BILL', res.bill)
     if (state.selectedTableId && state.tables.some(table => table.pendingPrintedBillId === res.bill.id)) state.lastBill = res.bill
     state.lastDoc = { kind: 'BILL', id: res.bill.id }
     render()
-    setTimeout(printLast, 50)
+    setTimeout(() => printLast(requirePass), 50)
   } catch (e) { setMsg('', e.message) }
 }
 
@@ -618,7 +629,7 @@ function tablesView() {
             <b>${escapeHtml(table.name)}</b>
             <span>${table.capacity ? `${table.capacity} pax` : 'Dining'}</span>
             ${table.status === 'occupied' ? `<strong>${table.itemCount} items${table.pendingPrintedBillNumber ? `<br>Printed ${escapeHtml(table.pendingPrintedBillNumber)}` : ''}</strong>` : '<em>Open order</em>'}
-            ${table.status === 'occupied' ? `<div class="tableActions"><button class="miniBtn" onclick="event.stopPropagation();${table.pendingPrintedBillId ? `printBillById('${escapeHtml(table.pendingPrintedBillId)}')` : `selectTable('${escapeHtml(table.id)}')`}">${table.pendingPrintedBillId ? 'Reprint' : 'Print Bill'}</button>${table.pendingPrintedBillId ? `<button class="miniBtn danger" onclick="event.stopPropagation();clearTableFromFloor('${escapeHtml(table.id)}','${escapeHtml(table.name)}')">Clear</button>` : ''}</div>` : ''}
+            ${table.status === 'occupied' ? `<div class="tableActions"><button class="miniBtn" onclick="event.stopPropagation();${table.pendingPrintedBillId ? `printBillById('${escapeHtml(table.pendingPrintedBillId)}', true)` : `selectTable('${escapeHtml(table.id)}')`}">${table.pendingPrintedBillId ? 'Reprint' : 'Print Bill'}</button>${table.pendingPrintedBillId ? `<button class="miniBtn danger" onclick="event.stopPropagation();clearTableFromFloor('${escapeHtml(table.id)}','${escapeHtml(table.name)}')">Clear</button>` : ''}</div>` : ''}
           </div>
         `).join('')}
       </div>
@@ -660,7 +671,7 @@ function orderView() {
         <b>${escapeHtml(selected.pendingPrintedBillNumber || 'Bill')} locked</b>
         <div class="sub">Is table ka bill print ho chuka hai. Clear hone tak yahan sirf reprint chalega.</div>
         <div class="actionRow">
-          <button class="btn dark" onclick="printBillById('${escapeHtml(selected.pendingPrintedBillId)}')">Reprint Bill</button>
+          <button class="btn dark" onclick="printBillById('${escapeHtml(selected.pendingPrintedBillId)}', true)">Reprint Bill</button>
         </div>
       </div>
       <div class="cartPanel">
@@ -708,7 +719,7 @@ function orderView() {
     </details>
     ${cartView()}
     ${postPrintActions()}
-    ${state.lastPrintable ? `<div class="panel"><button class="btn dark block" onclick="printLast()">Reprint Last KOT/Bill</button><pre id="printBox" class="receipt receipt${escapeHtml(state.printer.paper)}">${escapeHtml(state.lastPrintable)}</pre></div>` : '<pre id="printBox" class="receipt hide"></pre>'}
+    ${state.lastPrintable ? `<div class="panel"><button class="btn dark block" onclick="printLast(true)">Reprint Last KOT/Bill</button><pre id="printBox" class="receipt receipt${escapeHtml(state.printer.paper)}">${escapeHtml(state.lastPrintable)}</pre></div>` : '<pre id="printBox" class="receipt hide"></pre>'}
     ${messages()}
     ${state.cart.length && !state.lastBill ? `<div class="cartbar"><div class="total">${t.count} items<br>${money(t.total)}</div>${state.selectedTableId ? '<button class="btn secondary" onclick="saveTableOrder()">Save</button>' : ''}<button class="btn secondary" onclick="sendKot('NEW')">KOT</button><button class="btn good" onclick="makeBill()">Bill</button></div>` : ''}
   </main>`
@@ -720,7 +731,7 @@ function postPrintActions() {
     <b>${escapeHtml(state.lastBill.number)} printed?</b>
     <div class="sub">Reprint if needed. Table clear action is now on Floor tab.</div>
     <div class="actionRow">
-      <button class="btn secondary" onclick="printLast()">Reprint</button>
+      <button class="btn secondary" onclick="printLast(true)">Reprint</button>
       <button class="btn good" onclick="state.tab='tables';render()">Floor</button>
     </div>
   </div>`
@@ -749,7 +760,7 @@ function listView(kind) {
       if (kind === 'kots') state.recentKots = docs
       else state.recentBills = docs
       const label = kind === 'kots' ? 'KOT' : 'BILL'
-      $(`#${kind}Box`).innerHTML = docs.map(d => `<div class="docrow"><div class="docTop"><div><b>${escapeHtml(d.number)}</b><div class="meta">${escapeHtml(d.table || 'No table')} - ${escapeHtml(d.staff)} - ${new Date(d.createdAt).toLocaleString()} - Reprint ${d.reprintCount || 0}</div></div><button class="btn secondary" onclick="printDoc('${label}','${escapeHtml(d.id)}')">Print</button></div><div class="docItems">${(d.items || []).map(item => `<span>${item.quantity || 1} x ${escapeHtml(item.name)}</span>`).join('')}</div>${d.totals ? `<div class="docTotal">Total ${money(d.totals.grandTotalPaise)}</div>` : ''}</div>`).join('') || '<div class="sub">Nothing yet.</div>'
+      $(`#${kind}Box`).innerHTML = docs.map(d => `<div class="docrow"><div class="docTop"><div><b>${escapeHtml(d.number)}</b><div class="meta">${escapeHtml(d.table || 'No table')} - ${escapeHtml(d.staff)} - ${new Date(d.createdAt).toLocaleString()} - Reprint ${d.reprintCount || 0}</div></div><button class="btn secondary" onclick="printDoc('${label}','${escapeHtml(d.id)}', ${Number(d.printCount || 0) > 0})">${Number(d.printCount || 0) > 0 ? 'Reprint' : 'Print'}</button></div><div class="docItems">${(d.items || []).map(item => `<span>${item.quantity || 1} x ${escapeHtml(item.name)}</span>`).join('')}</div>${d.totals ? `<div class="docTotal">Total ${money(d.totals.grandTotalPaise)}</div>` : ''}</div>`).join('') || '<div class="sub">Nothing yet.</div>'
     } catch (e) { $(`#${kind}Box`).innerHTML = `<div class="error">${escapeHtml(e.message)}</div>` }
   }, 0)
   return `<main class="screen"><div class="command"><div><h1 class="title">${kind === 'kots' ? 'KOTs' : 'Bills'}</h1><div class="sub">Recent printable records.</div></div></div><div class="panel"><div id="${kind}Box" class="sub">Loading...</div></div><pre id="printBox" class="receipt hide"></pre></main>`

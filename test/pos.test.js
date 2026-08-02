@@ -183,10 +183,17 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     assert.equal(firstBillPrint.res.status, 200)
     assert.equal(firstBillPrint.body.event.action, 'PRINT')
 
-    const billReprint = await jsonFetch(`${baseUrl}/api/prints`, {
+    const blockedBillReprint = await jsonFetch(`${baseUrl}/api/prints`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify({ kind: 'BILL', id: bill.body.bill.id }),
+    })
+    assert.equal(blockedBillReprint.res.status, 423)
+
+    const billReprint = await jsonFetch(`${baseUrl}/api/prints`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ kind: 'BILL', id: bill.body.bill.id, passcode: '8199' }),
     })
     assert.equal(billReprint.res.status, 200)
     assert.equal(billReprint.body.event.action, 'REPRINT')
@@ -207,10 +214,17 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     })
     assert.equal(kotPrint.res.status, 200)
 
-    const kotReprint = await jsonFetch(`${baseUrl}/api/prints`, {
+    const blockedKotReprint = await jsonFetch(`${baseUrl}/api/prints`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify({ kind: 'KOT', id: kot.body.kot.id }),
+    })
+    assert.equal(blockedKotReprint.res.status, 423)
+
+    const kotReprint = await jsonFetch(`${baseUrl}/api/prints`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ kind: 'KOT', id: kot.body.kot.id, passcode: '8199' }),
     })
     assert.equal(kotReprint.res.status, 200)
     assert.equal(kotReprint.body.event.action, 'REPRINT')
