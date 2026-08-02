@@ -502,6 +502,7 @@ async function addMenuItem() {
 }
 
 async function addUser() {
+  if (state.user?.role !== 'OWNER') return setMsg('', 'Only owner can add staff.')
   try {
     const body = {
       name: $('#staffName').value.trim(),
@@ -805,6 +806,21 @@ function reportView() {
 function manageView() {
   const ownerOnly = state.user?.role === 'OWNER'
   const sections = [...new Set(state.tables.map(t => t.section || 'Dining'))]
+  const printerSetup = `<label class="label">Printer Setup</label>
+      <div class="printerBox">
+        <select class="select" id="printerPaper">
+          <option value="80" ${state.printer.paper === '80' ? 'selected' : ''}>80mm receipt</option>
+          <option value="58" ${state.printer.paper === '58' ? 'selected' : ''}>58mm receipt</option>
+          <option value="A4" ${state.printer.paper === 'A4' ? 'selected' : ''}>A4 / normal printer</option>
+        </select>
+        <div class="grid2">
+          <label class="checkLine"><input type="checkbox" id="printerAutoPrint" ${state.printer.autoPrint ? 'checked' : ''}> Auto print bill</label>
+          <input class="input" id="printerCopies" type="number" min="1" max="3" value="${escapeHtml(state.printer.copies || 1)}" placeholder="Copies">
+        </div>
+        <button class="btn secondary block" onclick="savePrinterSetup()">Save Printer</button>
+        <button class="btn dark block" onclick="testPrint()">Test Print</button>
+        <div class="sub">Mobile will open the phone/browser print dialog. Select your Bluetooth/Wi-Fi printer there.</div>
+      </div>`
   return `<main class="screen">
     <div class="command"><div><h1 class="title">Setup</h1><div class="sub">${state.menu.length} menu items - ${state.tables.length} tables - ${sections.length} sections</div></div></div>
     ${ownerOnly ? `<div class="panel">
@@ -829,24 +845,14 @@ function manageView() {
         <button class="btn secondary block" onclick="saveGstSetup()">Save GST</button>
         <div class="sub">If GST number is blank or GST is 0, GST will not show on bills and new bills will not charge tax.</div>
       </div>
-      <label class="label">Printer Setup</label>
-      <div class="printerBox">
-        <select class="select" id="printerPaper">
-          <option value="80" ${state.printer.paper === '80' ? 'selected' : ''}>80mm receipt</option>
-          <option value="58" ${state.printer.paper === '58' ? 'selected' : ''}>58mm receipt</option>
-          <option value="A4" ${state.printer.paper === 'A4' ? 'selected' : ''}>A4 / normal printer</option>
-        </select>
-        <div class="grid2">
-          <label class="checkLine"><input type="checkbox" id="printerAutoPrint" ${state.printer.autoPrint ? 'checked' : ''}> Auto print bill</label>
-          <input class="input" id="printerCopies" type="number" min="1" max="3" value="${escapeHtml(state.printer.copies || 1)}" placeholder="Copies">
-        </div>
-        <button class="btn secondary block" onclick="savePrinterSetup()">Save Printer</button>
-        <button class="btn dark block" onclick="testPrint()">Test Print</button>
-        <div class="sub">Mobile will open the phone/browser print dialog. Select your Bluetooth/Wi-Fi printer there.</div>
-      </div>
+      ${printerSetup}
       <label class="label">Current Tables</label>
       <div class="miniList">${state.tables.map(table => `<span>${escapeHtml(table.name)} - ${escapeHtml(table.section || 'Dining')}</span>`).join('')}</div>
-    </div>` : '<div class="panel"><h1 class="title">Setup</h1><div class="sub">Owner login required.</div></div>'}
+    </div>` : `<div class="panel">
+      <h1 class="title">Setup Locked</h1>
+      <div class="sub">Add Staff, menu, tables, and GST are Owner-only. Passcode se unlock nahi hoga.</div>
+      ${printerSetup}
+    </div>`}
     <button class="btn secondary block" onclick="logout()">Logout</button>
     ${messages()}
   </main>`

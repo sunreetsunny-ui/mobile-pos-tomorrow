@@ -313,6 +313,13 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     })
     assert.equal(managerLogin.res.status, 200)
     const managerCookie = managerLogin.res.headers.get('set-cookie').split(';')[0]
+    const managerHeaders = { Cookie: managerCookie, 'X-CSRF-Token': managerLogin.body.csrfToken }
+    const managerAddStaff = await jsonFetch(`${baseUrl}/api/users`, {
+      method: 'POST',
+      headers: managerHeaders,
+      body: JSON.stringify({ name: 'Bad Staff', username: 'badstaff', password: 'bad-pass', role: 'STAFF', passcode: '8199' }),
+    })
+    assert.equal(managerAddStaff.res.status, 403)
     const managerReport = await jsonFetch(`${baseUrl}/api/reports/today`, { headers: { Cookie: managerCookie } })
     assert.equal(managerReport.res.status, 200)
     assert.equal(managerReport.body.billCount, 2)
@@ -325,6 +332,13 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     })
     assert.equal(staffLogin.res.status, 200)
     const staffCookie = staffLogin.res.headers.get('set-cookie').split(';')[0]
+    const staffHeaders = { Cookie: staffCookie, 'X-CSRF-Token': staffLogin.body.csrfToken }
+    const staffAddStaff = await jsonFetch(`${baseUrl}/api/users`, {
+      method: 'POST',
+      headers: staffHeaders,
+      body: JSON.stringify({ name: 'Bad Manager', username: 'badmanager', password: 'bad-pass', role: 'MANAGER', passcode: '8199' }),
+    })
+    assert.equal(staffAddStaff.res.status, 403)
     const staffReport = await jsonFetch(`${baseUrl}/api/reports/today`, { headers: { Cookie: staffCookie } })
     assert.equal(staffReport.res.status, 403)
   })
