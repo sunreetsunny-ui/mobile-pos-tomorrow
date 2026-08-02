@@ -124,7 +124,10 @@ function setMeta(key, value) {
 
 function setMenuSearch(value) {
   state.menuSearch = value
-  render()
+  const input = $('#menuSearch')
+  if (input && input.value !== value) input.value = value
+  const target = $('#menuResults')
+  if (target) target.innerHTML = menuResultsHtml()
 }
 
 function addItemById(itemId) {
@@ -258,6 +261,21 @@ async function clearAfterBill() {
     await loadTables()
     setMsg('Order cleared after bill print')
     state.tab = 'tables'
+  } catch (e) { setMsg('', e.message) }
+}
+
+async function clearTableFromFloor(tableId, tableName) {
+  if (!window.confirm(`Clear ${tableName}? Do this only after bill is printed.`)) return
+  try {
+    await api(`/api/tables/${encodeURIComponent(tableId)}/clear`, { method: 'POST' })
+    if (state.selectedTableId === tableId) {
+      state.selectedTableId = ''
+      state.cart = []
+      state.orderMeta = emptyMeta()
+      state.lastBill = null
+    }
+    await loadTables()
+    setMsg(`${tableName} cleared`)
   } catch (e) { setMsg('', e.message) }
 }
 
@@ -463,12 +481,13 @@ function tablesView() {
       <div class="sectionBar"><b>${escapeHtml(section)}</b><span>${state.tables.filter(t => (t.section || 'Dining') === section && t.status === 'occupied').length} running</span></div>
       <div class="tableGrid">
         ${state.tables.filter(t => (t.section || 'Dining') === section).map(table => `
-          <button class="tableCard ${table.status}" onclick="selectTable('${escapeHtml(table.id)}')">
+          <div class="tableCard ${table.status}" onclick="selectTable('${escapeHtml(table.id)}')" role="button" tabindex="0">
             <span class="badge">${table.status === 'occupied' ? 'RUNNING' : 'FREE'}</span>
             <b>${escapeHtml(table.name)}</b>
             <span>${table.capacity ? `${table.capacity} pax` : 'Dining'}</span>
             ${table.status === 'occupied' ? `<strong>${table.itemCount} items<br>${money(table.totalPaise)}</strong>` : '<em>Open order</em>'}
-          </button>
+            ${table.status === 'occupied' ? `<div class="tableActions"><button class="miniBtn" onclick="event.stopPropagation();selectTable('${escapeHtml(table.id)}')">Open</button><button class="miniBtn danger" onclick="event.stopPropagation();clearTableFromFloor('${escapeHtml(table.id)}','${escapeHtml(table.name)}')">Clear</button></div>` : ''}
+          </div>
         `).join('')}
       </div>
     `).join('')}
@@ -476,13 +495,22 @@ function tablesView() {
   </main>`
 }
 
-function orderView() {
+function visibleMenuItems() {
   const query = state.menuSearch.trim().toLowerCase()
-  const visible = state.menu.filter(item => {
+  return state.menu.filter(item => {
     const categoryOk = state.category === 'All' || item.category === state.category
     const queryOk = !query || `${item.name} ${item.category}`.toLowerCase().includes(query)
     return (query || state.category !== 'All') && categoryOk && queryOk
   })
+}
+
+function menuResultsHtml() {
+  const query = state.menuSearch.trim()
+  const visible = visibleMenuItems()
+  return visible.slice(0, 40).map(item => `<button class="item" onclick="addItemById('${escapeHtml(item.id)}')"><b>${escapeHtml(item.name)}</b><span>${escapeHtml(item.category)}</span><strong>${money(item.pricePaise)}</strong></button>`).join('') || `<div class="notice">${query ? 'No menu item found.' : 'Search item name or pick a category.'}</div>`
+}
+
+function orderView() {
   const t = totals()
   const selected = state.tables.find(table => table.id === state.selectedTableId)
   return `<main class="screen">
@@ -506,12 +534,12 @@ function orderView() {
       <textarea class="textarea" id="orderNote" placeholder="Kitchen note" style="margin-top:8px" oninput="setMeta('note', this.value)">${escapeHtml(state.orderMeta.note)}</textarea>
     </div>
     <div class="searchBox">
-      <input class="input searchInput" placeholder="Search menu item..." value="${escapeHtml(state.menuSearch)}" oninput="setMenuSearch(this.value)" autofocus>
-      ${state.menuSearch ? `<button class="linkBtn" onclick="setMenuSearch('')">Clear</button>` : ''}
+      <input class="input searchInput" id="menuSearch" placeholder="Search menu item..." value="${escapeHtml(state.menuSearch)}" oninput="setMenuSearch(this.value)" autocomplete="off">
+      <button class="linkBtn" onclick="setMenuSearch('')">Clear</button>
     </div>
     <div class="posGrid">
       <aside class="categoryRail">${state.categories.map(c => `<button class="railBtn ${c === state.category ? 'active' : ''}" onclick="state.category='${escapeHtml(c)}';render()">${escapeHtml(c)}</button>`).join('')}</aside>
-      <section class="menuGrid">${visible.slice(0, 40).map(item => `<button class="item" onclick="addItemById('${escapeHtml(item.id)}')"><b>${escapeHtml(item.name)}</b><span>${escapeHtml(item.category)}</span><strong>${money(item.pricePaise)}</strong></button>`).join('') || `<div class="notice">${query ? 'No menu item found.' : 'Search item name or pick a category.'}</div>`}</section>
+      <section class="menuGrid" id="menuResults">${menuResultsHtml()}</section>
     </div>
     <details class="customBox">
       <summary>Custom item / open food</summary>
@@ -529,13 +557,12 @@ function orderView() {
 
 function postPrintActions() {
   if (!state.lastBill) return ''
-  const label = state.selectedTableId ? 'Clear Table' : 'Clear Parcel'
   return `<div class="panel actionPanel">
     <b>${escapeHtml(state.lastBill.number)} printed?</b>
-    <div class="sub">Reprint if needed. Use ${label} only after bill is printed and customer is done.</div>
+    <div class="sub">Reprint if needed. Table clear action is now on Floor tab.</div>
     <div class="actionRow">
       <button class="btn secondary" onclick="printLast()">Reprint</button>
-      <button class="btn good" onclick="clearAfterBill()">${label}</button>
+      <button class="btn good" onclick="state.tab='tables';render()">Floor</button>
     </div>
   </div>`
 }
@@ -635,5 +662,5 @@ function render() {
   app.innerHTML = shell((views[state.tab] || orderView)())
 }
 
-Object.assign(window, { state, render, setupOwner, login, logout, addItemById, changeQty, addCustomItem, sendKot, makeBill, printLast, printDoc, receiptFor, addMenuItem, addTable, addUser, downloadExport, selectTable, saveTableOrder, setMeta, setMenuSearch, openParcel, clearCart, clearAfterBill, savePrinterSetup, testPrint })
+Object.assign(window, { state, render, setupOwner, login, logout, addItemById, changeQty, addCustomItem, sendKot, makeBill, printLast, printDoc, receiptFor, addMenuItem, addTable, addUser, downloadExport, selectTable, saveTableOrder, setMeta, setMenuSearch, openParcel, clearCart, clearAfterBill, clearTableFromFloor, savePrinterSetup, testPrint })
 boot()

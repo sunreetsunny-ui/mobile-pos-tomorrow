@@ -151,12 +151,25 @@ button { touch-action: manipulation; }
   padding: 10px;
   text-align: left;
   position: relative;
+  cursor: pointer;
 }
 .tableCard b { display: block; font-size: 20px; margin: 8px 0 4px; }
 .tableCard span, .tableCard em { display: block; color: var(--muted); font-size: 12px; font-style: normal; }
 .tableCard strong { display: block; color: var(--brand-dark); margin-top: 8px; font-size: 14px; line-height: 1.25; }
 .tableCard.occupied { border-left-color: var(--brand); background: #fff7f7; }
 .tableCard.available { border-left-color: var(--good); background: #f7fff9; }
+.tableActions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+.miniBtn {
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--ink);
+  border-radius: 8px;
+  min-height: 36px;
+  padding: 7px;
+  font-size: 12px;
+  font-weight: 900;
+}
+.miniBtn.danger { border-color: #fecaca; background: #fee2e2; color: var(--bad); }
 .badge {
   display: inline-block !important;
   color: white !important;
