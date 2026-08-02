@@ -399,6 +399,17 @@ async function handleApi(req, res, data) {
     return send(res, 200, { table, order })
   }
 
+  const tableClearMatch = url.pathname.match(/^\/api\/tables\/([^/]+)\/clear$/)
+  if (tableClearMatch && req.method === 'POST') {
+    const tableId = decodeURIComponent(tableClearMatch[1])
+    const table = tableById(data, tableId)
+    if (!table) return send(res, 404, { error: 'Table not found' })
+    data.runningOrders = data.runningOrders.filter(entry => entry.tableId !== tableId)
+    audit(data, user, 'TABLE_CLEARED_AFTER_PRINT', { tableId })
+    saveData(data)
+    return send(res, 200, { ok: true, table })
+  }
+
   if (route === 'GET /api/menu') {
     return send(res, 200, { items: data.menu.filter(item => item.active), categories: [...new Set(data.menu.filter(i => i.active).map(i => i.category))] })
   }
@@ -489,7 +500,6 @@ async function handleApi(req, res, data) {
       staff: user.name,
     }
     data.bills.push(bill)
-    if (table) data.runningOrders = data.runningOrders.filter(entry => entry.tableId !== table.id)
     audit(data, user, 'BILL_FINALIZED', { billId: bill.id, number: bill.number, totalPaise: totals.grandTotalPaise, customItems: items.filter(i => i.type === 'CUSTOM_ITEM').length })
     saveData(data)
     return send(res, 200, { bill })

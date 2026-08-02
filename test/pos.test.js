@@ -117,7 +117,17 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     assert.match(bill.body.bill.number, /^INV-/)
 
     const tablesAfterBill = await jsonFetch(`${baseUrl}/api/tables`, { headers: { Cookie: cookie } })
-    const freed = tablesAfterBill.body.tables.find(table => table.id === tableId)
+    const stillOccupied = tablesAfterBill.body.tables.find(table => table.id === tableId)
+    assert.equal(stillOccupied.status, 'occupied')
+
+    const clearedTable = await jsonFetch(`${baseUrl}/api/tables/${encodeURIComponent(tableId)}/clear`, {
+      method: 'POST',
+      headers: authHeaders,
+    })
+    assert.equal(clearedTable.res.status, 200)
+
+    const tablesAfterClear = await jsonFetch(`${baseUrl}/api/tables`, { headers: { Cookie: cookie } })
+    const freed = tablesAfterClear.body.tables.find(table => table.id === tableId)
     assert.equal(freed.status, 'available')
 
     const report = await jsonFetch(`${baseUrl}/api/reports/today`, { headers: { Cookie: cookie } })

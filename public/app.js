@@ -14,9 +14,12 @@ const state = {
   selectedTableId: '',
   orderMeta: emptyMeta(),
   cart: [],
+  menuSearch: '',
   recentKots: [],
   recentBills: [],
   today: { billCount: 0, totalPaise: 0, bills: [] },
+  lastBill: null,
+  printer: JSON.parse(localStorage.getItem('printerSetup') || '{"paper":"80","autoPrint":true,"copies":1}'),
   tab: 'tables',
   lastPrintable: '',
   message: '',
@@ -119,6 +122,11 @@ function setMeta(key, value) {
   state.orderMeta[key] = value
 }
 
+function setMenuSearch(value) {
+  state.menuSearch = value
+  render()
+}
+
 function addItemById(itemId) {
   const item = state.menu.find(entry => entry.id === itemId)
   if (item) addItem(item)
@@ -134,6 +142,7 @@ function changeQty(index, delta) {
 
 function clearCart() {
   state.cart = []
+  state.lastBill = null
   render()
 }
 
@@ -141,6 +150,7 @@ function openParcel() {
   state.selectedTableId = ''
   state.orderMeta = { ...emptyMeta(), table: 'Parcel' }
   state.cart = []
+  state.lastBill = null
   state.tab = 'order'
   render()
 }
@@ -163,6 +173,7 @@ async function selectTable(tableId) {
     state.selectedTableId = tableId
     state.orderMeta = { ...state.orderMeta, table: res.table.name }
     state.cart = (res.order?.items || []).map(item => ({ ...item }))
+    state.lastBill = null
     state.tab = 'order'
     setMsg('')
   } catch (e) { setMsg('', e.message) }
@@ -227,12 +238,26 @@ async function makeBill() {
     const paidAmount = state.orderMeta.paidAmount || (totals().total / 100)
     const res = await api('/api/bill', { method: 'POST', body: JSON.stringify({ tableId: state.selectedTableId || undefined, table, customerName, paymentMethod, paidAmount, items: state.cart.map(itemPayload) }) })
     state.lastPrintable = receiptFor('BILL', res.bill)
-    state.cart = []
-    state.selectedTableId = ''
-    state.orderMeta = emptyMeta()
+    state.lastBill = res.bill
     await loadTables()
     await loadToday()
     setMsg(`Bill ${res.bill.number} saved`)
+    if (state.printer.autoPrint) setTimeout(printLast, 80)
+  } catch (e) { setMsg('', e.message) }
+}
+
+async function clearAfterBill() {
+  try {
+    if (state.selectedTableId) {
+      await api(`/api/tables/${encodeURIComponent(state.selectedTableId)}/clear`, { method: 'POST' })
+    }
+    state.cart = []
+    state.selectedTableId = ''
+    state.orderMeta = emptyMeta()
+    state.lastBill = null
+    await loadTables()
+    setMsg('Order cleared after bill print')
+    state.tab = 'tables'
   } catch (e) { setMsg('', e.message) }
 }
 
@@ -248,6 +273,29 @@ function printDoc(kind, id) {
   const doc = (kind === 'KOT' ? state.recentKots : state.recentBills).find(entry => entry.id === id)
   if (!doc) return setMsg('', 'Document not found')
   state.lastPrintable = receiptFor(kind, doc)
+  render()
+  setTimeout(printLast, 50)
+}
+
+function savePrinterSetup() {
+  state.printer = {
+    paper: $('#printerPaper').value,
+    autoPrint: $('#printerAutoPrint').checked,
+    copies: Math.max(1, Math.min(3, Math.trunc(Number($('#printerCopies').value || 1)))),
+  }
+  localStorage.setItem('printerSetup', JSON.stringify(state.printer))
+  setMsg('Printer setup saved')
+}
+
+function testPrint() {
+  state.lastPrintable = [
+    state.status?.restaurant?.name || 'Restaurant',
+    'PRINTER TEST',
+    `Paper: ${state.printer.paper}mm`,
+    `Time: ${new Date().toLocaleString()}`,
+    '------------------------------',
+    'If this prints clearly, setup is ready.',
+  ].join('\n')
   render()
   setTimeout(printLast, 50)
 }
@@ -429,7 +477,12 @@ function tablesView() {
 }
 
 function orderView() {
-  const visible = state.category === 'All' ? state.menu : state.menu.filter(i => i.category === state.category)
+  const query = state.menuSearch.trim().toLowerCase()
+  const visible = state.menu.filter(item => {
+    const categoryOk = state.category === 'All' || item.category === state.category
+    const queryOk = !query || `${item.name} ${item.category}`.toLowerCase().includes(query)
+    return (query || state.category !== 'All') && categoryOk && queryOk
+  })
   const t = totals()
   const selected = state.tables.find(table => table.id === state.selectedTableId)
   return `<main class="screen">
@@ -452,9 +505,13 @@ function orderView() {
       </div>
       <textarea class="textarea" id="orderNote" placeholder="Kitchen note" style="margin-top:8px" oninput="setMeta('note', this.value)">${escapeHtml(state.orderMeta.note)}</textarea>
     </div>
+    <div class="searchBox">
+      <input class="input searchInput" placeholder="Search menu item..." value="${escapeHtml(state.menuSearch)}" oninput="setMenuSearch(this.value)" autofocus>
+      ${state.menuSearch ? `<button class="linkBtn" onclick="setMenuSearch('')">Clear</button>` : ''}
+    </div>
     <div class="posGrid">
       <aside class="categoryRail">${state.categories.map(c => `<button class="railBtn ${c === state.category ? 'active' : ''}" onclick="state.category='${escapeHtml(c)}';render()">${escapeHtml(c)}</button>`).join('')}</aside>
-      <section class="menuGrid">${visible.map(item => `<button class="item" onclick="addItemById('${escapeHtml(item.id)}')"><b>${escapeHtml(item.name)}</b><span>${escapeHtml(item.category)}</span><strong>${money(item.pricePaise)}</strong></button>`).join('')}</section>
+      <section class="menuGrid">${visible.slice(0, 40).map(item => `<button class="item" onclick="addItemById('${escapeHtml(item.id)}')"><b>${escapeHtml(item.name)}</b><span>${escapeHtml(item.category)}</span><strong>${money(item.pricePaise)}</strong></button>`).join('') || `<div class="notice">${query ? 'No menu item found.' : 'Search item name or pick a category.'}</div>`}</section>
     </div>
     <details class="customBox">
       <summary>Custom item / open food</summary>
@@ -463,10 +520,24 @@ function orderView() {
       <button class="btn secondary block" onclick="addCustomItem()">Add Custom Item</button>
     </details>
     ${cartView()}
-    ${state.lastPrintable ? `<div class="panel"><button class="btn dark block" onclick="printLast()">Print Last KOT/Bill</button><pre id="printBox" class="receipt">${escapeHtml(state.lastPrintable)}</pre></div>` : '<pre id="printBox" class="receipt hide"></pre>'}
+    ${postPrintActions()}
+    ${state.lastPrintable ? `<div class="panel"><button class="btn dark block" onclick="printLast()">Reprint Last KOT/Bill</button><pre id="printBox" class="receipt receipt${escapeHtml(state.printer.paper)}">${escapeHtml(state.lastPrintable)}</pre></div>` : '<pre id="printBox" class="receipt hide"></pre>'}
     ${messages()}
-    ${state.cart.length ? `<div class="cartbar"><div class="total">${t.count} items<br>${money(t.total)}</div>${state.selectedTableId ? '<button class="btn secondary" onclick="saveTableOrder()">Save</button>' : ''}<button class="btn secondary" onclick="sendKot()">KOT</button><button class="btn good" onclick="makeBill()">Bill</button></div>` : ''}
+    ${state.cart.length && !state.lastBill ? `<div class="cartbar"><div class="total">${t.count} items<br>${money(t.total)}</div>${state.selectedTableId ? '<button class="btn secondary" onclick="saveTableOrder()">Save</button>' : ''}<button class="btn secondary" onclick="sendKot()">KOT</button><button class="btn good" onclick="makeBill()">Bill</button></div>` : ''}
   </main>`
+}
+
+function postPrintActions() {
+  if (!state.lastBill) return ''
+  const label = state.selectedTableId ? 'Clear Table' : 'Clear Parcel'
+  return `<div class="panel actionPanel">
+    <b>${escapeHtml(state.lastBill.number)} printed?</b>
+    <div class="sub">Reprint if needed. Use ${label} only after bill is printed and customer is done.</div>
+    <div class="actionRow">
+      <button class="btn secondary" onclick="printLast()">Reprint</button>
+      <button class="btn good" onclick="clearAfterBill()">${label}</button>
+    </div>
+  </div>`
 }
 
 function cartView() {
@@ -523,6 +594,21 @@ function manageView() {
       <div class="grid2"><input class="input" id="staffUsername" placeholder="Username"><select class="select" id="staffRole"><option>STAFF</option><option>OWNER</option></select></div>
       <input class="input" id="staffPassword" type="password" placeholder="Password, 6+ chars" style="margin-top:8px">
       <button class="btn dark block" onclick="addUser()">Add Staff</button>
+      <label class="label">Printer Setup</label>
+      <div class="printerBox">
+        <select class="select" id="printerPaper">
+          <option value="80" ${state.printer.paper === '80' ? 'selected' : ''}>80mm receipt</option>
+          <option value="58" ${state.printer.paper === '58' ? 'selected' : ''}>58mm receipt</option>
+          <option value="A4" ${state.printer.paper === 'A4' ? 'selected' : ''}>A4 / normal printer</option>
+        </select>
+        <div class="grid2">
+          <label class="checkLine"><input type="checkbox" id="printerAutoPrint" ${state.printer.autoPrint ? 'checked' : ''}> Auto print bill</label>
+          <input class="input" id="printerCopies" type="number" min="1" max="3" value="${escapeHtml(state.printer.copies || 1)}" placeholder="Copies">
+        </div>
+        <button class="btn secondary block" onclick="savePrinterSetup()">Save Printer</button>
+        <button class="btn dark block" onclick="testPrint()">Test Print</button>
+        <div class="sub">Mobile will open the phone/browser print dialog. Select your Bluetooth/Wi-Fi printer there.</div>
+      </div>
       <label class="label">Current Tables</label>
       <div class="miniList">${state.tables.map(table => `<span>${escapeHtml(table.name)} - ${escapeHtml(table.section || 'Dining')}</span>`).join('')}</div>
     </div>` : '<div class="panel"><h1 class="title">Setup</h1><div class="sub">Owner login required.</div></div>'}
@@ -549,5 +635,5 @@ function render() {
   app.innerHTML = shell((views[state.tab] || orderView)())
 }
 
-Object.assign(window, { state, render, setupOwner, login, logout, addItemById, changeQty, addCustomItem, sendKot, makeBill, printLast, printDoc, receiptFor, addMenuItem, addTable, addUser, downloadExport, selectTable, saveTableOrder, setMeta, openParcel, clearCart })
+Object.assign(window, { state, render, setupOwner, login, logout, addItemById, changeQty, addCustomItem, sendKot, makeBill, printLast, printDoc, receiptFor, addMenuItem, addTable, addUser, downloadExport, selectTable, saveTableOrder, setMeta, setMenuSearch, openParcel, clearCart, clearAfterBill, savePrinterSetup, testPrint })
 boot()

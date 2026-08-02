@@ -50,7 +50,7 @@ button { touch-action: manipulation; }
 
 .screen { flex: 1; padding: 12px; padding-bottom: 94px; max-width: 900px; width: 100%; margin: 0 auto; }
 .authScreen { max-width: 520px; }
-.panel, .ticketPanel, .cartPanel, .customBox {
+.panel, .ticketPanel, .cartPanel, .customBox, .searchBox {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -170,6 +170,16 @@ button { touch-action: manipulation; }
 .tableCard.available .badge { background: var(--good); }
 
 .posGrid { display: grid; grid-template-columns: 92px 1fr; gap: 8px; align-items: start; }
+.searchBox {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  position: sticky;
+  top: 64px;
+  z-index: 8;
+}
+.searchInput { min-height: 48px; font-weight: 850; }
 .categoryRail {
   display: grid;
   gap: 7px;
@@ -202,6 +212,8 @@ button { touch-action: manipulation; }
 .item strong { display: block; color: var(--brand-dark); font-size: 14px; margin-top: 8px; }
 
 .customBox summary { cursor: pointer; font-weight: 900; }
+.actionPanel { border-color: #bbf7d0; background: #f7fff9; }
+.actionRow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
 .cartPanel { margin-top: 10px; }
 .cartTitle { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
 .linkBtn { border: 0; background: transparent; color: var(--bad); font-weight: 900; padding: 8px; }
@@ -257,6 +269,22 @@ button { touch-action: manipulation; }
   font-size: 12px;
   white-space: pre-wrap;
 }
+.receipt58 { max-width: 230px; }
+.receipt80 { max-width: 310px; }
+.receiptA4 { max-width: none; }
+.printerBox { display: grid; gap: 8px; }
+.checkLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 850;
+  background: white;
+}
+.checkLine input { width: 18px; height: 18px; }
 .listrow {
   border-bottom: 1px solid var(--line);
   padding: 11px 0;
@@ -288,5 +316,8 @@ button { touch-action: manipulation; }
 @media print {
   body * { visibility: hidden; }
   .printable, .printable * { visibility: visible; }
-  .printable { position: absolute; left: 0; top: 0; width: 100%; border: 0; box-shadow: none; }
+  .printable { position: absolute; left: 0; top: 0; border: 0; box-shadow: none; }
+  .printable.receipt58 { width: 58mm; }
+  .printable.receipt80 { width: 80mm; }
+  .printable.receiptA4 { width: 190mm; }
 }
