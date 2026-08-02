@@ -262,6 +262,8 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     const tablesAfterClear = await jsonFetch(`${baseUrl}/api/tables`, { headers: { Cookie: cookie } })
     const freed = tablesAfterClear.body.tables.find(table => table.id === tableId)
     assert.equal(freed.status, 'available')
+    assert.equal(freed.pendingPrintedBillId, null)
+    assert.equal(freed.pendingPrintedBillNumber, null)
 
     const blockedClearedKotReprint = await jsonFetch(`${baseUrl}/api/prints`, {
       method: 'POST',

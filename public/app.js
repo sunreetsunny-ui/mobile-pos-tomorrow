@@ -321,6 +321,7 @@ async function sendKot(mode = 'NEW') {
       state.cart = (fresh.order?.items || []).map(item => ({ ...item }))
     }
     setMsg(`${mode === 'FULL' ? 'Full KOT' : 'KOT'} ${res.kot.number} saved`)
+    if (state.printer.autoPrint) setTimeout(printLast, 80)
   } catch (e) { setMsg('', e.message) }
 }
 
@@ -366,13 +367,14 @@ async function clearTableFromFloor(tableId, tableName) {
   if (!window.confirm(`Clear ${tableName}? Do this only after bill is printed.`)) return
   try {
     await api(`/api/tables/${encodeURIComponent(tableId)}/clear`, { method: 'POST' })
-    if (state.selectedTableId === tableId) {
-      state.selectedTableId = ''
-      state.cart = []
-      state.orderMeta = emptyMeta()
-      state.lastBill = null
-    }
+    state.selectedTableId = ''
+    state.cart = []
+    state.orderMeta = emptyMeta()
+    state.lastBill = null
+    state.lastDoc = null
+    state.lastPrintable = ''
     await loadTables()
+    state.tab = 'tables'
     setMsg(`${tableName} cleared`)
   } catch (e) { setMsg('', e.message) }
 }

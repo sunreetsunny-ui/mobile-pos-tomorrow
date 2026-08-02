@@ -363,14 +363,14 @@ function auditSensitiveOrderChange(data, actor, tableId, previousItems = [], nex
 
 function printedBillForTable(data, tableId, sinceAt = '') {
   const bills = data.bills
-    .filter(bill => bill.tableId === tableId && (!sinceAt || String(bill.createdAt) >= String(sinceAt)))
+    .filter(bill => bill.tableId === tableId && (!sinceAt || String(bill.createdAt) >= String(sinceAt)) && !tableClearedAfter(data, tableId, bill.createdAt))
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
   const bill = bills.find(entry => data.printEvents.some(event => event.docKind === 'BILL' && event.docId === entry.id))
   return bill || null
 }
 
 function tableClearedAfter(data, tableId, at) {
-  return data.audit.some(event => event.action === 'TABLE_CLEARED_AFTER_PRINT' && event.details?.tableId === tableId && String(event.at) > String(at))
+  return data.audit.some(event => event.action === 'TABLE_CLEARED_AFTER_PRINT' && event.details?.tableId === tableId && String(event.at) >= String(at))
 }
 
 function withPrintCounts(docs, kind, data) {
@@ -391,8 +391,8 @@ function publicTables(data) {
       status: order && order.items?.length ? 'occupied' : 'available',
       itemCount: orderTotals ? orderTotals.lines.reduce((sum, item) => sum + item.quantity, 0) : 0,
       totalPaise: orderTotals ? orderTotals.grandTotalPaise : 0,
-      pendingPrintedBillId: printedBill && printedBill.id,
-      pendingPrintedBillNumber: printedBill && printedBill.number,
+      pendingPrintedBillId: printedBill ? printedBill.id : null,
+      pendingPrintedBillNumber: printedBill ? printedBill.number : null,
       updatedAt: order && order.updatedAt,
     }
   })
