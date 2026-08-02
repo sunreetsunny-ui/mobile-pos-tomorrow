@@ -20,6 +20,7 @@ const state = {
   today: { billCount: 0, totalPaise: 0, bills: [] },
   lastBill: null,
   lastDoc: null,
+  orderUnlockPass: '',
   printer: JSON.parse(localStorage.getItem('printerSetup') || '{"paper":"80","autoPrint":true,"copies":1}'),
   tab: 'tables',
   lastPrintable: '',
@@ -116,6 +117,20 @@ function itemPayload(item) {
   return { menuItemId: item.id, quantity: item.quantity }
 }
 
+function lockedQty(item) {
+  return Math.min(Number(item.kotPrintedQty || 0), Number(item.quantity || 0))
+}
+
+function requestKotUnlock() {
+  const pass = window.prompt('KOT printed item locked. Enter passcode.')
+  if (pass !== '8199') {
+    setMsg('', 'Wrong passcode')
+    return false
+  }
+  state.orderUnlockPass = pass
+  return true
+}
+
 function addItem(item) {
   const found = state.cart.find(line => line.id === item.id && line.type !== 'CUSTOM_ITEM')
   if (found) found.quantity += 1
@@ -143,12 +158,14 @@ function addItemById(itemId) {
 function changeQty(index, delta) {
   const line = state.cart[index]
   if (!line) return
+  if (delta < 0 && line.quantity <= lockedQty(line) && !requestKotUnlock()) return
   line.quantity += delta
   if (line.quantity <= 0) state.cart.splice(index, 1)
   render()
 }
 
 function clearCart() {
+  if (state.cart.some(line => lockedQty(line) > 0) && !requestKotUnlock()) return
   state.cart = []
   state.lastBill = null
   render()
@@ -182,6 +199,7 @@ async function selectTable(tableId) {
     state.orderMeta = { ...state.orderMeta, table: res.table.name }
     state.cart = (res.order?.items || []).map(item => ({ ...item }))
     state.lastBill = null
+    state.orderUnlockPass = ''
     state.tab = 'order'
     setMsg('')
   } catch (e) { setMsg('', e.message) }
@@ -192,8 +210,9 @@ async function saveTableOrder(silent = false) {
   try {
     await api(`/api/tables/${encodeURIComponent(state.selectedTableId)}/order`, {
       method: 'PUT',
-      body: JSON.stringify({ items: state.cart.map(itemPayload) }),
+      body: JSON.stringify({ items: state.cart.map(itemPayload), passcode: state.orderUnlockPass }),
     })
+    state.orderUnlockPass = ''
     await loadTables()
     if (!silent) setMsg('Table order saved')
   } catch (e) { setMsg('', e.message) }
@@ -230,10 +249,15 @@ async function sendKot(mode = 'NEW') {
     if (!state.cart.length) throw new Error('Add at least one item before KOT')
     const table = state.orderMeta.table.trim()
     const note = state.orderMeta.note.trim()
-    const res = await api('/api/kot', { method: 'POST', body: JSON.stringify({ tableId: state.selectedTableId || undefined, table, note, mode, items: state.cart.map(itemPayload) }) })
+    const res = await api('/api/kot', { method: 'POST', body: JSON.stringify({ tableId: state.selectedTableId || undefined, table, note, mode, passcode: state.orderUnlockPass, items: state.cart.map(itemPayload) }) })
+    state.orderUnlockPass = ''
     if (state.selectedTableId) await loadTables()
     state.lastPrintable = receiptFor('KOT', res.kot)
     state.lastDoc = { kind: 'KOT', id: res.kot.id }
+    if (state.selectedTableId) {
+      const fresh = await api(`/api/tables/${encodeURIComponent(state.selectedTableId)}/order`)
+      state.cart = (fresh.order?.items || []).map(item => ({ ...item }))
+    }
     setMsg(`${mode === 'FULL' ? 'Full KOT' : 'KOT'} ${res.kot.number} saved`)
   } catch (e) { setMsg('', e.message) }
 }
@@ -245,13 +269,18 @@ async function makeBill() {
     const customerName = state.orderMeta.customerName.trim()
     const paymentMethod = state.orderMeta.paymentMethod
     const paidAmount = state.orderMeta.paidAmount || (totals().total / 100)
-    const res = await api('/api/bill', { method: 'POST', body: JSON.stringify({ tableId: state.selectedTableId || undefined, table, customerName, paymentMethod, paidAmount, items: state.cart.map(itemPayload) }) })
+    const res = await api('/api/bill', { method: 'POST', body: JSON.stringify({ tableId: state.selectedTableId || undefined, table, customerName, paymentMethod, paidAmount, passcode: state.orderUnlockPass, items: state.cart.map(itemPayload) }) })
+    state.orderUnlockPass = ''
     state.lastPrintable = receiptFor('BILL', res.bill)
     state.lastBill = res.bill
     state.lastDoc = { kind: 'BILL', id: res.bill.id }
+    if (state.selectedTableId) {
+      const fresh = await api(`/api/tables/${encodeURIComponent(state.selectedTableId)}/order`)
+      state.cart = (fresh.order?.items || []).map(item => ({ ...item }))
+    }
     await loadTables()
     await loadToday()
-    setMsg(`Bill ${res.bill.number} saved`)
+    setMsg(`Bill ${res.bill.number} saved${res.autoKot ? `; auto KOT ${res.autoKot.number} registered` : ''}`)
     if (state.printer.autoPrint) setTimeout(printLast, 80)
   } catch (e) { setMsg('', e.message) }
 }
@@ -576,7 +605,7 @@ function orderView() {
     ${postPrintActions()}
     ${state.lastPrintable ? `<div class="panel"><button class="btn dark block" onclick="printLast()">Reprint Last KOT/Bill</button><pre id="printBox" class="receipt receipt${escapeHtml(state.printer.paper)}">${escapeHtml(state.lastPrintable)}</pre></div>` : '<pre id="printBox" class="receipt hide"></pre>'}
     ${messages()}
-    ${state.cart.length && !state.lastBill ? `<div class="cartbar"><div class="total">${t.count} items<br>${money(t.total)}</div>${state.selectedTableId ? '<button class="btn secondary" onclick="saveTableOrder()">Save</button>' : ''}<button class="btn secondary" onclick="sendKot('NEW')">KOT</button>${state.selectedTableId ? `<button class="btn secondary" onclick="sendKot('FULL')">Full</button>` : ''}<button class="btn good" onclick="makeBill()">Bill</button></div>` : ''}
+    ${state.cart.length && !state.lastBill ? `<div class="cartbar"><div class="total">${t.count} items<br>${money(t.total)}</div>${state.selectedTableId ? '<button class="btn secondary" onclick="saveTableOrder()">Save</button>' : ''}<button class="btn secondary" onclick="sendKot('NEW')">KOT</button><button class="btn good" onclick="makeBill()">Bill</button></div>` : ''}
   </main>`
 }
 
@@ -597,7 +626,7 @@ function cartView() {
   const t = totals()
   return `<div class="cartPanel">
     <div class="cartTitle"><b>Current Ticket</b><button class="linkBtn" onclick="clearCart()">Clear</button></div>
-    ${state.cart.map((line, i) => `<div class="cartline"><div><b>${escapeHtml(line.name)}</b><div class="meta">${money(line.pricePaise)} each${line.reason ? ` - ${escapeHtml(line.reason)}` : ''}</div></div><div class="qty"><button onclick="changeQty(${i},-1)">-</button><b>${line.quantity}</b><button onclick="changeQty(${i},1)">+</button></div></div>`).join('')}
+    ${state.cart.map((line, i) => `<div class="cartline"><div><b>${escapeHtml(line.name)}</b><div class="meta">${money(line.pricePaise)} each${line.reason ? ` - ${escapeHtml(line.reason)}` : ''}${lockedQty(line) ? ` - Locked ${lockedQty(line)} KOT` : ''}</div></div><div class="qty"><button onclick="changeQty(${i},-1)">-</button><b>${line.quantity}</b><button onclick="changeQty(${i},1)">+</button></div></div>`).join('')}
     <div class="totals">
       <span>Subtotal <b>${money(t.subtotal)}</b></span>
       <span>Tax <b>${money(t.tax)}</b></span>
@@ -615,7 +644,7 @@ function listView(kind) {
       if (kind === 'kots') state.recentKots = docs
       else state.recentBills = docs
       const label = kind === 'kots' ? 'KOT' : 'BILL'
-      $(`#${kind}Box`).innerHTML = docs.map(d => `<div class="listrow"><b>${escapeHtml(d.number)}</b><div class="meta">${escapeHtml(d.table || 'No table')} - ${escapeHtml(d.staff)} - ${new Date(d.createdAt).toLocaleString()}</div><button class="btn secondary" onclick="printDoc('${label}','${escapeHtml(d.id)}')">Print</button></div>`).join('') || '<div class="sub">Nothing yet.</div>'
+      $(`#${kind}Box`).innerHTML = docs.map(d => `<div class="docrow"><div class="docTop"><div><b>${escapeHtml(d.number)}</b><div class="meta">${escapeHtml(d.table || 'No table')} - ${escapeHtml(d.staff)} - ${new Date(d.createdAt).toLocaleString()}</div></div><button class="btn secondary" onclick="printDoc('${label}','${escapeHtml(d.id)}')">Print</button></div><div class="docItems">${(d.items || []).map(item => `<span>${item.quantity || 1} x ${escapeHtml(item.name)}</span>`).join('')}</div>${d.totals ? `<div class="docTotal">Total ${money(d.totals.grandTotalPaise)}</div>` : ''}</div>`).join('') || '<div class="sub">Nothing yet.</div>'
     } catch (e) { $(`#${kind}Box`).innerHTML = `<div class="error">${escapeHtml(e.message)}</div>` }
   }, 0)
   return `<main class="screen"><div class="command"><div><h1 class="title">${kind === 'kots' ? 'KOTs' : 'Bills'}</h1><div class="sub">Recent printable records.</div></div></div><div class="panel"><div id="${kind}Box" class="sub">Loading...</div></div><pre id="printBox" class="receipt hide"></pre></main>`

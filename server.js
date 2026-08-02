@@ -10,6 +10,7 @@ const DATA_FILE = path.join(DATA_DIR, 'pos.json')
 const PUBLIC_DIR = path.join(__dirname, 'public')
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
+const KOT_UNLOCK_PASS = '8199'
 
 const sessions = new Map()
 const loginFailures = new Map()
@@ -288,6 +289,19 @@ function mergeKotState(previousItems = [], nextItems = []) {
   return nextItems.map(item => ({ ...item, kotPrintedQty: Math.min(sentByKey.get(lineKey(item)) || 0, item.quantity) }))
 }
 
+function assertKotLockedLinesAllowed(previousItems = [], nextItems = [], passcode = '') {
+  if (String(passcode) === KOT_UNLOCK_PASS) return
+  const nextByKey = new Map(nextItems.map(item => [lineKey(item), item]))
+  for (const prev of previousItems) {
+    const printedQty = Math.min(Number(prev.kotPrintedQty || 0), Number(prev.quantity || 0))
+    if (printedQty <= 0) continue
+    const next = nextByKey.get(lineKey(prev))
+    if (!next || Number(next.quantity || 0) < printedQty) {
+      throw new Error('KOT printed items are locked. Passcode required.')
+    }
+  }
+}
+
 function printedBillForTable(data, tableId, sinceAt = '') {
   const bills = data.bills
     .filter(bill => bill.tableId === tableId && (!sinceAt || String(bill.createdAt) >= String(sinceAt)))
@@ -428,6 +442,12 @@ async function handleApi(req, res, data) {
     if (!table) return send(res, 404, { error: 'Table not found' })
     const body = await readJson(req)
     const items = (body.items || []).map(input => safeItemFromMenu(data, input))
+    const existing = data.runningOrders.find(entry => entry.tableId === tableId)
+    try {
+      assertKotLockedLinesAllowed(existing && existing.items, items, body.passcode)
+    } catch (e) {
+      return send(res, 423, { error: e.message })
+    }
     const order = upsertRunningOrder(data, tableId, items, user)
     saveData(data)
     return send(res, 200, { table, order })
@@ -506,6 +526,12 @@ async function handleApi(req, res, data) {
     let kotItems = items
     let mode = body.mode === 'FULL' ? 'FULL' : 'NEW'
     if (table) {
+      const existing = data.runningOrders.find(entry => entry.tableId === table.id)
+      try {
+        assertKotLockedLinesAllowed(existing && existing.items, items, body.passcode)
+      } catch (e) {
+        return send(res, 423, { error: e.message })
+      }
       const order = upsertRunningOrder(data, table.id, items, user)
       if (mode === 'NEW') {
         kotItems = (order.items || [])
@@ -558,9 +584,35 @@ async function handleApi(req, res, data) {
     if (!items.length) return send(res, 400, { error: 'No items' })
     const table = body.tableId ? tableById(data, body.tableId) : null
     if (body.tableId && !table) return send(res, 404, { error: 'Table not found' })
+    if (table) {
+      const existing = data.runningOrders.find(entry => entry.tableId === table.id)
+      try {
+        assertKotLockedLinesAllowed(existing && existing.items, items, body.passcode)
+      } catch (e) {
+        return send(res, 423, { error: e.message })
+      }
+    }
     const totals = calculateTotals(items, paise(body.discount || 0))
     const paidPaise = paise(body.paidAmount == null ? rupees(totals.grandTotalPaise) : body.paidAmount)
     if (paidPaise < totals.grandTotalPaise) return send(res, 400, { error: 'Paid amount is less than bill total' })
+    let autoKot = null
+    if (table) {
+      const order = upsertRunningOrder(data, table.id, items, user)
+      const autoKotItems = (order.items || [])
+        .map(item => ({ ...item, quantity: Math.max(0, Number(item.quantity || 0) - Number(item.kotPrintedQty || 0)) }))
+        .filter(item => item.quantity > 0)
+      if (autoKotItems.length) {
+        autoKot = { id: id('kot'), number: `KOT-${String(++data.sequences.kot).padStart(5, '0')}`, tableId: table.id, table: table.name, orderType: body.orderType || 'DINE_IN', mode: 'AUTO_BILL', items: autoKotItems, note: 'Auto KOT from bill', createdAt: nowIso(), staff: user.name }
+        data.kots.push(autoKot)
+        const sent = new Map(autoKotItems.map(item => [lineKey(item), Number(item.quantity || 0)]))
+        order.items = order.items.map(item => ({ ...item, kotPrintedQty: Math.min(item.quantity, Number(item.kotPrintedQty || 0) + (sent.get(lineKey(item)) || 0)) }))
+        audit(data, user, 'AUTO_KOT_CREATED', { kotId: autoKot.id, number: autoKot.number, billSource: true })
+      }
+    } else {
+      autoKot = { id: id('kot'), number: `KOT-${String(++data.sequences.kot).padStart(5, '0')}`, tableId: null, table: body.table || '', orderType: body.orderType || 'TAKEAWAY', mode: 'AUTO_BILL', items, note: 'Auto KOT from direct bill', createdAt: nowIso(), staff: user.name }
+      data.kots.push(autoKot)
+      audit(data, user, 'AUTO_KOT_CREATED', { kotId: autoKot.id, number: autoKot.number, billSource: true })
+    }
     const bill = {
       id: id('bill'),
       number: `INV-${String(++data.sequences.invoice).padStart(5, '0')}`,
@@ -579,7 +631,7 @@ async function handleApi(req, res, data) {
     data.bills.push(bill)
     audit(data, user, 'BILL_FINALIZED', { billId: bill.id, number: bill.number, totalPaise: totals.grandTotalPaise, customItems: items.filter(i => i.type === 'CUSTOM_ITEM').length })
     saveData(data)
-    return send(res, 200, { bill })
+    return send(res, 200, { bill, autoKot })
   }
 
   if (route === 'GET /api/reports/today') {

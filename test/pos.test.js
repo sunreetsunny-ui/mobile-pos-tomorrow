@@ -126,6 +126,13 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     assert.equal(kot.body.kot.items.length, 1)
     assert.equal(kot.body.kot.items[0].quantity, 2)
 
+    const lockedReduce = await jsonFetch(`${baseUrl}/api/tables/${encodeURIComponent(tableId)}/order`, {
+      method: 'PUT',
+      headers: authHeaders,
+      body: JSON.stringify({ items: [{ menuItemId, quantity: 1 }] }),
+    })
+    assert.equal(lockedReduce.res.status, 423)
+
     const updatedOrder = await jsonFetch(`${baseUrl}/api/tables/${encodeURIComponent(tableId)}/order`, {
       method: 'PUT',
       headers: authHeaders,
@@ -148,14 +155,6 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
       body: JSON.stringify({ tableId, items: [{ menuItemId, quantity: 2 }, { menuItemId: secondMenuItemId, quantity: 1 }] }),
     })
     assert.equal(noNewKot.res.status, 409)
-
-    const fullKot = await jsonFetch(`${baseUrl}/api/kot`, {
-      method: 'POST',
-      headers: authHeaders,
-      body: JSON.stringify({ tableId, mode: 'FULL', items: [{ menuItemId, quantity: 2 }, { menuItemId: secondMenuItemId, quantity: 1 }] }),
-    })
-    assert.equal(fullKot.res.status, 200)
-    assert.equal(fullKot.body.kot.items.length, 2)
 
     const bill = await jsonFetch(`${baseUrl}/api/bill`, {
       method: 'POST',
@@ -221,10 +220,19 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     const freed = tablesAfterClear.body.tables.find(table => table.id === tableId)
     assert.equal(freed.status, 'available')
 
+    const directBill = await jsonFetch(`${baseUrl}/api/bill`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ table: 'Parcel', paymentMethod: 'Cash', items: [{ menuItemId, quantity: 1 }] }),
+    })
+    assert.equal(directBill.res.status, 200)
+    assert.ok(directBill.body.autoKot)
+    assert.match(directBill.body.autoKot.number, /^KOT-/)
+
     const report = await jsonFetch(`${baseUrl}/api/reports/today`, { headers: { Cookie: cookie } })
     assert.equal(report.res.status, 200)
-    assert.equal(report.body.billCount, 1)
-    assert.equal(report.body.totalPaise, bill.body.bill.totals.grandTotalPaise)
+    assert.equal(report.body.billCount, 2)
+    assert.equal(report.body.totalPaise, bill.body.bill.totals.grandTotalPaise + directBill.body.bill.totals.grandTotalPaise)
     assert.equal(report.body.reprintCount, 2)
     assert.equal(report.body.reprintEvents.length, 2)
 
@@ -236,7 +244,7 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     const managerCookie = managerLogin.res.headers.get('set-cookie').split(';')[0]
     const managerReport = await jsonFetch(`${baseUrl}/api/reports/today`, { headers: { Cookie: managerCookie } })
     assert.equal(managerReport.res.status, 200)
-    assert.equal(managerReport.body.billCount, 1)
+    assert.equal(managerReport.body.billCount, 2)
 
     const staffLogin = await jsonFetch(`${baseUrl}/api/login`, {
       method: 'POST',

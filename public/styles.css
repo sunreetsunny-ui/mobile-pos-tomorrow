@@ -307,6 +307,12 @@ button { touch-action: manipulation; }
   align-items: center;
 }
 .listrow:last-child { border-bottom: 0; }
+.docrow { border-bottom: 1px solid var(--line); padding: 11px 0; }
+.docrow:last-child { border-bottom: 0; }
+.docTop { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: start; }
+.docItems { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.docItems span { background: #f1f5f9; border: 1px solid var(--line); border-radius: 999px; padding: 5px 7px; font-size: 12px; font-weight: 800; }
+.docTotal { margin-top: 8px; font-weight: 900; color: var(--brand-dark); }
 .right { text-align: right; }
 .muted { color: var(--muted); }
 .miniList { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
