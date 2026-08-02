@@ -28,6 +28,7 @@ function defaultData() {
     orders: [],
     kots: [],
     bills: [],
+    printEvents: [],
     audit: [],
     sequences: { kot: 0, invoice: 0 },
   }
@@ -59,6 +60,7 @@ function loadData() {
   const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'))
   if (!Array.isArray(data.tables)) data.tables = seedTables()
   if (!Array.isArray(data.runningOrders)) data.runningOrders = []
+  if (!Array.isArray(data.printEvents)) data.printEvents = []
   if (!data.sequences) data.sequences = { kot: 0, invoice: 0 }
   return data
 }
@@ -266,15 +268,36 @@ function safeItemFromMenu(data, input) {
   }
 }
 
+function lineKey(item) {
+  if (item.type === 'CUSTOM_ITEM') return `custom|${item.name}|${item.pricePaise}|${item.reason || ''}`
+  return `menu|${item.id}`
+}
+
+function mergeKotState(previousItems = [], nextItems = []) {
+  const sentByKey = new Map(previousItems.map(item => [lineKey(item), Math.min(Number(item.kotPrintedQty || 0), Number(item.quantity || 0))]))
+  return nextItems.map(item => ({ ...item, kotPrintedQty: Math.min(sentByKey.get(lineKey(item)) || 0, item.quantity) }))
+}
+
+function printedBillForTable(data, tableId, sinceAt = '') {
+  const bills = data.bills
+    .filter(bill => bill.tableId === tableId && (!sinceAt || String(bill.createdAt) >= String(sinceAt)))
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+  const bill = bills.find(entry => data.printEvents.some(event => event.docKind === 'BILL' && event.docId === entry.id))
+  return bill || null
+}
+
 function publicTables(data) {
   return data.tables.filter(table => table.active).map(table => {
     const order = data.runningOrders.find(entry => entry.tableId === table.id)
     const orderTotals = order ? calculateTotals(order.items || []) : null
+    const printedBill = order && printedBillForTable(data, table.id, order.updatedAt)
     return {
       ...table,
       status: order && order.items?.length ? 'occupied' : 'available',
       itemCount: orderTotals ? orderTotals.lines.reduce((sum, item) => sum + item.quantity, 0) : 0,
       totalPaise: orderTotals ? orderTotals.grandTotalPaise : 0,
+      pendingPrintedBillId: printedBill && printedBill.id,
+      pendingPrintedBillNumber: printedBill && printedBill.number,
       updatedAt: order && order.updatedAt,
     }
   })
@@ -291,11 +314,12 @@ function upsertRunningOrder(data, tableId, items, actor) {
     audit(data, actor, 'TABLE_ORDER_CLEARED', { tableId })
     return null
   }
-  const payload = { tableId, items, updatedAt: nowIso(), updatedBy: actor.name }
+  const payload = { tableId, items: mergeKotState(existing && existing.items, items), updatedAt: nowIso(), updatedBy: actor.name }
+  const stored = existing || payload
   if (existing) Object.assign(existing, payload)
-  else data.runningOrders.push(payload)
+  else data.runningOrders.push(stored)
   audit(data, actor, 'TABLE_ORDER_SAVED', { tableId, itemCount: items.length })
-  return payload
+  return stored
 }
 
 async function handleApi(req, res, data) {
@@ -404,6 +428,8 @@ async function handleApi(req, res, data) {
     const tableId = decodeURIComponent(tableClearMatch[1])
     const table = tableById(data, tableId)
     if (!table) return send(res, 404, { error: 'Table not found' })
+    const order = data.runningOrders.find(entry => entry.tableId === tableId)
+    if (!printedBillForTable(data, tableId, order && order.updatedAt)) return send(res, 409, { error: 'Print bill before clearing table' })
     data.runningOrders = data.runningOrders.filter(entry => entry.tableId !== tableId)
     audit(data, user, 'TABLE_CLEARED_AFTER_PRINT', { tableId })
     saveData(data)
@@ -467,12 +493,53 @@ async function handleApi(req, res, data) {
     if (!items.length) return send(res, 400, { error: 'No items' })
     const table = body.tableId ? tableById(data, body.tableId) : null
     if (body.tableId && !table) return send(res, 404, { error: 'Table not found' })
-    if (table) upsertRunningOrder(data, table.id, items, user)
-    const kot = { id: id('kot'), number: `KOT-${String(++data.sequences.kot).padStart(5, '0')}`, tableId: table && table.id, table: table ? table.name : (body.table || ''), orderType: body.orderType || 'DINE_IN', items, note: body.note || '', createdAt: nowIso(), staff: user.name }
+    let kotItems = items
+    let mode = body.mode === 'FULL' ? 'FULL' : 'NEW'
+    if (table) {
+      const order = upsertRunningOrder(data, table.id, items, user)
+      if (mode === 'NEW') {
+        kotItems = (order.items || [])
+          .map(item => ({ ...item, quantity: Math.max(0, Number(item.quantity || 0) - Number(item.kotPrintedQty || 0)) }))
+          .filter(item => item.quantity > 0)
+      } else {
+        kotItems = order.items || []
+      }
+      if (!kotItems.length) return send(res, 409, { error: 'No new items for KOT. Use Full KOT if needed.' })
+      const sent = new Map(kotItems.map(item => [lineKey(item), Number(item.quantity || 0)]))
+      order.items = order.items.map(item => {
+        const nextPrinted = mode === 'FULL' ? item.quantity : Math.min(item.quantity, Number(item.kotPrintedQty || 0) + (sent.get(lineKey(item)) || 0))
+        return { ...item, kotPrintedQty: nextPrinted }
+      })
+    }
+    const kot = { id: id('kot'), number: `KOT-${String(++data.sequences.kot).padStart(5, '0')}`, tableId: table && table.id, table: table ? table.name : (body.table || ''), orderType: body.orderType || 'DINE_IN', mode, items: kotItems, note: body.note || '', createdAt: nowIso(), staff: user.name }
     data.kots.push(kot)
     audit(data, user, 'KOT_CREATED', { kotId: kot.id, number: kot.number, customItems: items.filter(i => i.type === 'CUSTOM_ITEM').length })
     saveData(data)
     return send(res, 200, { kot })
+  }
+
+  if (route === 'POST /api/prints') {
+    const body = await readJson(req)
+    const docKind = body.kind === 'KOT' ? 'KOT' : body.kind === 'BILL' ? 'BILL' : ''
+    const collection = docKind === 'KOT' ? data.kots : docKind === 'BILL' ? data.bills : []
+    const doc = collection.find(entry => entry.id === body.id)
+    if (!docKind || !doc) return send(res, 404, { error: 'Printable document not found' })
+    const previousCount = data.printEvents.filter(event => event.docKind === docKind && event.docId === doc.id).length
+    const event = {
+      id: id('print'),
+      docKind,
+      docId: doc.id,
+      docNumber: doc.number,
+      tableId: doc.tableId || '',
+      table: doc.table || '',
+      action: previousCount ? 'REPRINT' : 'PRINT',
+      at: nowIso(),
+      staff: user.name,
+    }
+    data.printEvents.push(event)
+    audit(data, user, 'DOCUMENT_PRINTED', { docKind, docId: doc.id, docNumber: doc.number, action: event.action })
+    saveData(data)
+    return send(res, 200, { event, printCount: previousCount + 1 })
   }
 
   if (route === 'POST /api/bill') {
@@ -508,9 +575,11 @@ async function handleApi(req, res, data) {
   if (route === 'GET /api/reports/today') {
     const today = new Date().toISOString().slice(0, 10)
     const bills = data.bills.filter(b => b.createdAt.slice(0, 10) === today)
+    const printEvents = data.printEvents.filter(event => event.at.slice(0, 10) === today)
+    const reprintEvents = printEvents.filter(event => event.action === 'REPRINT')
     const totalPaise = bills.reduce((sum, b) => sum + b.totals.grandTotalPaise, 0)
     const customPaise = bills.flatMap(b => b.items).filter(i => i.type === 'CUSTOM_ITEM').reduce((sum, i) => sum + i.totalPaise, 0)
-    return send(res, 200, { date: today, bills, totalPaise, customPaise, billCount: bills.length })
+    return send(res, 200, { date: today, bills, totalPaise, customPaise, billCount: bills.length, printEvents, reprintEvents, printCount: printEvents.length, reprintCount: reprintEvents.length })
   }
 
   if (route === 'GET /api/export') {

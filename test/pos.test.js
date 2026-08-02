@@ -70,6 +70,7 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     const menu = await jsonFetch(`${baseUrl}/api/menu`, { headers: { Cookie: cookie } })
     assert.equal(menu.res.status, 200)
     const menuItemId = menu.body.items[0].id
+    const secondMenuItemId = menu.body.items[1].id
 
     const missingCsrf = await jsonFetch(`${baseUrl}/api/kot`, {
       method: 'POST',
@@ -107,11 +108,44 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     assert.equal(kot.res.status, 200)
     assert.match(kot.body.kot.number, /^KOT-/)
     assert.equal(kot.body.kot.table, 'Garden 1')
+    assert.equal(kot.body.kot.items.length, 1)
+    assert.equal(kot.body.kot.items[0].quantity, 2)
+
+    const updatedOrder = await jsonFetch(`${baseUrl}/api/tables/${encodeURIComponent(tableId)}/order`, {
+      method: 'PUT',
+      headers: authHeaders,
+      body: JSON.stringify({ items: [{ menuItemId, quantity: 2 }, { menuItemId: secondMenuItemId, quantity: 1 }] }),
+    })
+    assert.equal(updatedOrder.res.status, 200)
+
+    const newItemKot = await jsonFetch(`${baseUrl}/api/kot`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ tableId, items: [{ menuItemId, quantity: 2 }, { menuItemId: secondMenuItemId, quantity: 1 }] }),
+    })
+    assert.equal(newItemKot.res.status, 200)
+    assert.equal(newItemKot.body.kot.items.length, 1)
+    assert.equal(newItemKot.body.kot.items[0].id, secondMenuItemId)
+
+    const noNewKot = await jsonFetch(`${baseUrl}/api/kot`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ tableId, items: [{ menuItemId, quantity: 2 }, { menuItemId: secondMenuItemId, quantity: 1 }] }),
+    })
+    assert.equal(noNewKot.res.status, 409)
+
+    const fullKot = await jsonFetch(`${baseUrl}/api/kot`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ tableId, mode: 'FULL', items: [{ menuItemId, quantity: 2 }, { menuItemId: secondMenuItemId, quantity: 1 }] }),
+    })
+    assert.equal(fullKot.res.status, 200)
+    assert.equal(fullKot.body.kot.items.length, 2)
 
     const bill = await jsonFetch(`${baseUrl}/api/bill`, {
       method: 'POST',
       headers: authHeaders,
-      body: JSON.stringify({ tableId, paymentMethod: 'UPI', items: [{ menuItemId, quantity: 2 }] }),
+      body: JSON.stringify({ tableId, paymentMethod: 'UPI', items: [{ menuItemId, quantity: 2 }, { menuItemId: secondMenuItemId, quantity: 1 }] }),
     })
     assert.equal(bill.res.status, 200)
     assert.match(bill.body.bill.number, /^INV-/)
@@ -119,6 +153,48 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     const tablesAfterBill = await jsonFetch(`${baseUrl}/api/tables`, { headers: { Cookie: cookie } })
     const stillOccupied = tablesAfterBill.body.tables.find(table => table.id === tableId)
     assert.equal(stillOccupied.status, 'occupied')
+    assert.equal(stillOccupied.pendingPrintedBillId, null)
+
+    const clearBeforePrint = await jsonFetch(`${baseUrl}/api/tables/${encodeURIComponent(tableId)}/clear`, {
+      method: 'POST',
+      headers: authHeaders,
+    })
+    assert.equal(clearBeforePrint.res.status, 409)
+
+    const firstBillPrint = await jsonFetch(`${baseUrl}/api/prints`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ kind: 'BILL', id: bill.body.bill.id }),
+    })
+    assert.equal(firstBillPrint.res.status, 200)
+    assert.equal(firstBillPrint.body.event.action, 'PRINT')
+
+    const billReprint = await jsonFetch(`${baseUrl}/api/prints`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ kind: 'BILL', id: bill.body.bill.id }),
+    })
+    assert.equal(billReprint.res.status, 200)
+    assert.equal(billReprint.body.event.action, 'REPRINT')
+
+    const kotPrint = await jsonFetch(`${baseUrl}/api/prints`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ kind: 'KOT', id: kot.body.kot.id }),
+    })
+    assert.equal(kotPrint.res.status, 200)
+
+    const kotReprint = await jsonFetch(`${baseUrl}/api/prints`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ kind: 'KOT', id: kot.body.kot.id }),
+    })
+    assert.equal(kotReprint.res.status, 200)
+    assert.equal(kotReprint.body.event.action, 'REPRINT')
+
+    const tablesAfterPrint = await jsonFetch(`${baseUrl}/api/tables`, { headers: { Cookie: cookie } })
+    const clearable = tablesAfterPrint.body.tables.find(table => table.id === tableId)
+    assert.equal(clearable.pendingPrintedBillId, bill.body.bill.id)
 
     const clearedTable = await jsonFetch(`${baseUrl}/api/tables/${encodeURIComponent(tableId)}/clear`, {
       method: 'POST',
@@ -134,5 +210,7 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     assert.equal(report.res.status, 200)
     assert.equal(report.body.billCount, 1)
     assert.equal(report.body.totalPaise, bill.body.bill.totals.grandTotalPaise)
+    assert.equal(report.body.reprintCount, 2)
+    assert.equal(report.body.reprintEvents.length, 2)
   })
 })

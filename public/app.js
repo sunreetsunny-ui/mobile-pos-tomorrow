@@ -19,6 +19,7 @@ const state = {
   recentBills: [],
   today: { billCount: 0, totalPaise: 0, bills: [] },
   lastBill: null,
+  lastDoc: null,
   printer: JSON.parse(localStorage.getItem('printerSetup') || '{"paper":"80","autoPrint":true,"copies":1}'),
   tab: 'tables',
   lastPrintable: '',
@@ -220,15 +221,16 @@ function receiptFor(kind, doc) {
   return lines.join('\n')
 }
 
-async function sendKot() {
+async function sendKot(mode = 'NEW') {
   try {
     if (!state.cart.length) throw new Error('Add at least one item before KOT')
     const table = state.orderMeta.table.trim()
     const note = state.orderMeta.note.trim()
-    const res = await api('/api/kot', { method: 'POST', body: JSON.stringify({ tableId: state.selectedTableId || undefined, table, note, items: state.cart.map(itemPayload) }) })
+    const res = await api('/api/kot', { method: 'POST', body: JSON.stringify({ tableId: state.selectedTableId || undefined, table, note, mode, items: state.cart.map(itemPayload) }) })
     if (state.selectedTableId) await loadTables()
     state.lastPrintable = receiptFor('KOT', res.kot)
-    setMsg(`KOT ${res.kot.number} saved`)
+    state.lastDoc = { kind: 'KOT', id: res.kot.id }
+    setMsg(`${mode === 'FULL' ? 'Full KOT' : 'KOT'} ${res.kot.number} saved`)
   } catch (e) { setMsg('', e.message) }
 }
 
@@ -242,6 +244,7 @@ async function makeBill() {
     const res = await api('/api/bill', { method: 'POST', body: JSON.stringify({ tableId: state.selectedTableId || undefined, table, customerName, paymentMethod, paidAmount, items: state.cart.map(itemPayload) }) })
     state.lastPrintable = receiptFor('BILL', res.bill)
     state.lastBill = res.bill
+    state.lastDoc = { kind: 'BILL', id: res.bill.id }
     await loadTables()
     await loadToday()
     setMsg(`Bill ${res.bill.number} saved`)
@@ -279,8 +282,20 @@ async function clearTableFromFloor(tableId, tableName) {
   } catch (e) { setMsg('', e.message) }
 }
 
-function printLast() {
+async function logPrint(kind, id) {
+  if (!kind || !id) return
+  try {
+    await api('/api/prints', { method: 'POST', body: JSON.stringify({ kind, id }) })
+    await loadTables()
+    await loadToday()
+  } catch (e) {
+    state.error = e.message
+  }
+}
+
+async function printLast() {
   if (!state.lastPrintable) return setMsg('', 'Nothing to print yet')
+  await logPrint(state.lastDoc?.kind, state.lastDoc?.id)
   const box = $('#printBox')
   box.textContent = state.lastPrintable
   box.classList.add('printable')
@@ -291,6 +306,7 @@ function printDoc(kind, id) {
   const doc = (kind === 'KOT' ? state.recentKots : state.recentBills).find(entry => entry.id === id)
   if (!doc) return setMsg('', 'Document not found')
   state.lastPrintable = receiptFor(kind, doc)
+  state.lastDoc = { kind, id: doc.id }
   render()
   setTimeout(printLast, 50)
 }
@@ -306,6 +322,7 @@ function savePrinterSetup() {
 }
 
 function testPrint() {
+  state.lastDoc = null
   state.lastPrintable = [
     state.status?.restaurant?.name || 'Restaurant',
     'PRINTER TEST',
@@ -406,8 +423,12 @@ async function renderReport() {
       <div class="statGrid">
         <div class="stat"><span>Bills</span><b>${report.billCount}</b></div>
         <div class="stat"><span>Sales</span><b>${money(report.totalPaise)}</b></div>
-        <div class="stat"><span>Cash/UPI</span><b>${report.bills?.length || 0}</b></div>
-        <div class="stat"><span>Tables</span><b>${floorStats().occupied}</b></div>
+        <div class="stat"><span>Prints</span><b>${report.printCount || 0}</b></div>
+        <div class="stat"><span>Reprints</span><b>${report.reprintCount || 0}</b></div>
+      </div>
+      <div class="panel">
+        <b>Reprints</b>
+        ${(report.reprintEvents || []).slice().reverse().map(p => `<div class="listrow"><b>${escapeHtml(p.docNumber)}</b><div class="meta">${escapeHtml(p.docKind)} - ${escapeHtml(p.table || 'No table')} - ${new Date(p.at).toLocaleTimeString()}</div></div>`).join('') || '<div class="sub">No reprints yet.</div>'}
       </div>
       <div class="panel">
         <b>Today Bills</b>
@@ -485,8 +506,8 @@ function tablesView() {
             <span class="badge">${table.status === 'occupied' ? 'RUNNING' : 'FREE'}</span>
             <b>${escapeHtml(table.name)}</b>
             <span>${table.capacity ? `${table.capacity} pax` : 'Dining'}</span>
-            ${table.status === 'occupied' ? `<strong>${table.itemCount} items<br>${money(table.totalPaise)}</strong>` : '<em>Open order</em>'}
-            ${table.status === 'occupied' ? `<div class="tableActions"><button class="miniBtn" onclick="event.stopPropagation();selectTable('${escapeHtml(table.id)}')">Open</button><button class="miniBtn danger" onclick="event.stopPropagation();clearTableFromFloor('${escapeHtml(table.id)}','${escapeHtml(table.name)}')">Clear</button></div>` : ''}
+            ${table.status === 'occupied' ? `<strong>${table.itemCount} items<br>${money(table.totalPaise)}${table.pendingPrintedBillNumber ? `<br>Printed ${escapeHtml(table.pendingPrintedBillNumber)}` : ''}</strong>` : '<em>Open order</em>'}
+            ${table.status === 'occupied' ? `<div class="tableActions"><button class="miniBtn" onclick="event.stopPropagation();selectTable('${escapeHtml(table.id)}')">${table.pendingPrintedBillId ? 'See Table' : 'Print Bill'}</button>${table.pendingPrintedBillId ? `<button class="miniBtn danger" onclick="event.stopPropagation();clearTableFromFloor('${escapeHtml(table.id)}','${escapeHtml(table.name)}')">Clear</button>` : ''}</div>` : ''}
           </div>
         `).join('')}
       </div>
@@ -551,7 +572,7 @@ function orderView() {
     ${postPrintActions()}
     ${state.lastPrintable ? `<div class="panel"><button class="btn dark block" onclick="printLast()">Reprint Last KOT/Bill</button><pre id="printBox" class="receipt receipt${escapeHtml(state.printer.paper)}">${escapeHtml(state.lastPrintable)}</pre></div>` : '<pre id="printBox" class="receipt hide"></pre>'}
     ${messages()}
-    ${state.cart.length && !state.lastBill ? `<div class="cartbar"><div class="total">${t.count} items<br>${money(t.total)}</div>${state.selectedTableId ? '<button class="btn secondary" onclick="saveTableOrder()">Save</button>' : ''}<button class="btn secondary" onclick="sendKot()">KOT</button><button class="btn good" onclick="makeBill()">Bill</button></div>` : ''}
+    ${state.cart.length && !state.lastBill ? `<div class="cartbar"><div class="total">${t.count} items<br>${money(t.total)}</div>${state.selectedTableId ? '<button class="btn secondary" onclick="saveTableOrder()">Save</button>' : ''}<button class="btn secondary" onclick="sendKot('NEW')">KOT</button>${state.selectedTableId ? `<button class="btn secondary" onclick="sendKot('FULL')">Full</button>` : ''}<button class="btn good" onclick="makeBill()">Bill</button></div>` : ''}
   </main>`
 }
 
