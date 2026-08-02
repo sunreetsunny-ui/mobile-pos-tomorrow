@@ -202,6 +202,16 @@ function requireOwner(req, res, data) {
   return user
 }
 
+function requireSalesAccess(req, res, data) {
+  const user = requireUser(req, res, data)
+  if (!user) return null
+  if (!['OWNER', 'MANAGER'].includes(user.role)) {
+    send(res, 403, { error: 'Owner or manager access required' })
+    return null
+  }
+  return user
+}
+
 function requireCsrf(req, res) {
   if (SAFE_METHODS.has(req.method)) return true
   const session = currentSession(req)
@@ -469,7 +479,7 @@ async function handleApi(req, res, data) {
       id: id('user'),
       name: String(body.name || username).trim(),
       username,
-      role: body.role === 'OWNER' ? 'OWNER' : 'STAFF',
+      role: body.role === 'OWNER' ? 'OWNER' : body.role === 'MANAGER' ? 'MANAGER' : 'STAFF',
       passwordHash: await hashPassword(body.password),
       disabled: false,
     }
@@ -573,6 +583,8 @@ async function handleApi(req, res, data) {
   }
 
   if (route === 'GET /api/reports/today') {
+    const allowed = requireSalesAccess(req, res, data)
+    if (!allowed) return
     const today = new Date().toISOString().slice(0, 10)
     const bills = data.bills.filter(b => b.createdAt.slice(0, 10) === today)
     const printEvents = data.printEvents.filter(event => event.at.slice(0, 10) === today)

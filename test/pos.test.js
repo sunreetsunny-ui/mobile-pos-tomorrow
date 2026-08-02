@@ -88,6 +88,21 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     assert.equal(createdTable.res.status, 200)
     const tableId = createdTable.body.table.id
 
+    const managerUser = await jsonFetch(`${baseUrl}/api/users`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ name: 'Manager', username: 'manager', password: 'manager-pass', role: 'MANAGER' }),
+    })
+    assert.equal(managerUser.res.status, 200)
+    assert.equal(managerUser.body.user.role, 'MANAGER')
+
+    const staffUser = await jsonFetch(`${baseUrl}/api/users`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ name: 'Staff', username: 'staff', password: 'staff-pass', role: 'STAFF' }),
+    })
+    assert.equal(staffUser.res.status, 200)
+
     const savedOrder = await jsonFetch(`${baseUrl}/api/tables/${encodeURIComponent(tableId)}/order`, {
       method: 'PUT',
       headers: authHeaders,
@@ -212,5 +227,24 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     assert.equal(report.body.totalPaise, bill.body.bill.totals.grandTotalPaise)
     assert.equal(report.body.reprintCount, 2)
     assert.equal(report.body.reprintEvents.length, 2)
+
+    const managerLogin = await jsonFetch(`${baseUrl}/api/login`, {
+      method: 'POST',
+      body: JSON.stringify({ username: 'manager', password: 'manager-pass' }),
+    })
+    assert.equal(managerLogin.res.status, 200)
+    const managerCookie = managerLogin.res.headers.get('set-cookie').split(';')[0]
+    const managerReport = await jsonFetch(`${baseUrl}/api/reports/today`, { headers: { Cookie: managerCookie } })
+    assert.equal(managerReport.res.status, 200)
+    assert.equal(managerReport.body.billCount, 1)
+
+    const staffLogin = await jsonFetch(`${baseUrl}/api/login`, {
+      method: 'POST',
+      body: JSON.stringify({ username: 'staff', password: 'staff-pass' }),
+    })
+    assert.equal(staffLogin.res.status, 200)
+    const staffCookie = staffLogin.res.headers.get('set-cookie').split(';')[0]
+    const staffReport = await jsonFetch(`${baseUrl}/api/reports/today`, { headers: { Cookie: staffCookie } })
+    assert.equal(staffReport.res.status, 403)
   })
 })

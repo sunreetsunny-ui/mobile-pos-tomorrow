@@ -96,8 +96,12 @@ function floorStats() {
     total: state.tables.length,
     occupied: occupied.length,
     available: state.tables.length - occupied.length,
-    runningPaise: occupied.reduce((sum, table) => sum + Number(table.totalPaise || 0), 0),
+    printed: occupied.filter(table => table.pendingPrintedBillId).length,
   }
+}
+
+function canSeeSales() {
+  return ['OWNER', 'MANAGER'].includes(state.user?.role)
 }
 
 function itemPayload(item) {
@@ -494,8 +498,8 @@ function tablesView() {
     <div class="statGrid">
       <div class="stat"><span>Occupied</span><b>${stats.occupied}/${stats.total}</b></div>
       <div class="stat"><span>Available</span><b>${stats.available}</b></div>
-      <div class="stat"><span>Running</span><b>${money(stats.runningPaise)}</b></div>
-      <div class="stat"><span>Today</span><b>${money(state.today.totalPaise)}</b></div>
+      <div class="stat"><span>Running</span><b>${stats.occupied}</b></div>
+      <div class="stat"><span>Printed</span><b>${stats.printed}</b></div>
     </div>
     <div class="floorMeter"><span style="width:${busy}%"></span></div>
     ${sections.map(section => `
@@ -506,7 +510,7 @@ function tablesView() {
             <span class="badge">${table.status === 'occupied' ? 'RUNNING' : 'FREE'}</span>
             <b>${escapeHtml(table.name)}</b>
             <span>${table.capacity ? `${table.capacity} pax` : 'Dining'}</span>
-            ${table.status === 'occupied' ? `<strong>${table.itemCount} items<br>${money(table.totalPaise)}${table.pendingPrintedBillNumber ? `<br>Printed ${escapeHtml(table.pendingPrintedBillNumber)}` : ''}</strong>` : '<em>Open order</em>'}
+            ${table.status === 'occupied' ? `<strong>${table.itemCount} items${table.pendingPrintedBillNumber ? `<br>Printed ${escapeHtml(table.pendingPrintedBillNumber)}` : ''}</strong>` : '<em>Open order</em>'}
             ${table.status === 'occupied' ? `<div class="tableActions"><button class="miniBtn" onclick="event.stopPropagation();selectTable('${escapeHtml(table.id)}')">${table.pendingPrintedBillId ? 'See Table' : 'Print Bill'}</button>${table.pendingPrintedBillId ? `<button class="miniBtn danger" onclick="event.stopPropagation();clearTableFromFloor('${escapeHtml(table.id)}','${escapeHtml(table.name)}')">Clear</button>` : ''}</div>` : ''}
           </div>
         `).join('')}
@@ -618,8 +622,9 @@ function listView(kind) {
 }
 
 function reportView() {
+  if (!canSeeSales()) return `<main class="screen"><div class="panel"><h1 class="title">Reports</h1><div class="sub">Owner or manager access required.</div></div>${messages()}</main>`
   setTimeout(renderReport, 0)
-  return `<main class="screen"><div class="command"><div><h1 class="title">Reports</h1><div class="sub">Today sales and backup.</div></div><button class="btn secondary compact" onclick="downloadExport()">Backup</button></div><div id="reportBox"></div>${messages()}</main>`
+  return `<main class="screen"><div class="command"><div><h1 class="title">Reports</h1><div class="sub">Today sales and reprints.</div></div>${state.user?.role === 'OWNER' ? '<button class="btn secondary compact" onclick="downloadExport()">Backup</button>' : ''}</div><div id="reportBox"></div>${messages()}</main>`
 }
 
 function manageView() {
@@ -639,7 +644,7 @@ function manageView() {
       <button class="btn secondary block" onclick="addTable()">Add Table</button>
       <label class="label">Add Staff</label>
       <input class="input" id="staffName" placeholder="Staff name">
-      <div class="grid2"><input class="input" id="staffUsername" placeholder="Username"><select class="select" id="staffRole"><option>STAFF</option><option>OWNER</option></select></div>
+      <div class="grid2"><input class="input" id="staffUsername" placeholder="Username"><select class="select" id="staffRole"><option>STAFF</option><option>MANAGER</option><option>OWNER</option></select></div>
       <input class="input" id="staffPassword" type="password" placeholder="Password, 6+ chars" style="margin-top:8px">
       <button class="btn dark block" onclick="addUser()">Add Staff</button>
       <label class="label">Printer Setup</label>
@@ -670,15 +675,20 @@ function messages() {
 }
 
 function shell(content) {
+  const nav = [
+    ['tables', 'Floor'], ['order', 'Bill'], ['kots', 'KOT'], ['bills', 'Bills'],
+    ...(canSeeSales() ? [['report', 'Report']] : []),
+    ['manage', 'Setup'],
+  ]
   return `<div class="app"><header class="topbar"><div class="brand"><b>${escapeHtml(state.status?.restaurant?.name || 'Mobile POS')}</b><span>${escapeHtml(state.user?.name || '')} - ${new Date().toLocaleDateString()}</span></div><button class="pill" onclick="logout()">Logout</button></header>${content}<nav class="tabs">${[
-    ['tables', 'Floor'], ['order', 'Bill'], ['kots', 'KOT'], ['bills', 'Bills'], ['report', 'Report'], ['manage', 'Setup']
-  ].map(([key, label]) => `<button class="tab ${state.tab === key ? 'active' : ''}" onclick="state.tab='${key}';render()">${label}</button>`).join('')}</nav></div>`
+  ].concat(nav).map(([key, label]) => `<button class="tab ${state.tab === key ? 'active' : ''}" onclick="state.tab='${key}';render()">${label}</button>`).join('')}</nav></div>`
 }
 
 function render() {
   if (!state.status) { app.innerHTML = '<main class="screen"><div class="panel">Loading...</div></main>'; return }
   if (!state.status.setupComplete) { app.innerHTML = setupView(); return }
   if (!state.user) { app.innerHTML = loginView(); return }
+  if (state.tab === 'report' && !canSeeSales()) state.tab = 'tables'
   const views = { tables: tablesView, order: orderView, kots: () => listView('kots'), bills: () => listView('bills'), report: reportView, manage: manageView }
   app.innerHTML = shell((views[state.tab] || orderView)())
 }
