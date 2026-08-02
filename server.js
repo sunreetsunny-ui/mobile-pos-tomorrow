@@ -44,16 +44,9 @@ function seedTables() {
 }
 
 function seedMenu() {
-  return [
-    { id: id('item'), category: 'Starters', name: 'Paneer Tikka', pricePaise: 22000, taxBps: 500, active: true },
-    { id: id('item'), category: 'Starters', name: 'Chicken Lollipop', pricePaise: 26000, taxBps: 500, active: true },
-    { id: id('item'), category: 'Main Course', name: 'Butter Chicken', pricePaise: 32000, taxBps: 500, active: true },
-    { id: id('item'), category: 'Main Course', name: 'Paneer Butter Masala', pricePaise: 26000, taxBps: 500, active: true },
-    { id: id('item'), category: 'Rice', name: 'Veg Biryani', pricePaise: 18000, taxBps: 500, active: true },
-    { id: id('item'), category: 'Rice', name: 'Chicken Biryani', pricePaise: 24000, taxBps: 500, active: true },
-    { id: id('item'), category: 'Breads', name: 'Butter Naan', pricePaise: 4500, taxBps: 500, active: true },
-    { id: id('item'), category: 'Drinks', name: 'Fresh Lime Soda', pricePaise: 7000, taxBps: 500, active: true },
-  ]
+  const seedFile = path.join(__dirname, 'menu-seed.json')
+  if (fs.existsSync(seedFile)) return JSON.parse(fs.readFileSync(seedFile, 'utf8'))
+  return []
 }
 
 function loadData() {

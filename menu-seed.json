@@ -1,0 +1,1394 @@
+[
+  {
+    "id": "item_37cc6b473312e796",
+    "category": "Noodle",
+    "name": "Paneer Noodle",
+    "pricePaise": 20900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_24a16c504db3bc90",
+    "category": "Noodle",
+    "name": "Hakka Noodle",
+    "pricePaise": 19900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_67af65919146cbbc",
+    "category": "Noodle",
+    "name": "Chilli Garlic Noodle",
+    "pricePaise": 18900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_aaa549b4f6ef9220",
+    "category": "Noodle",
+    "name": "Schezwan Noodle",
+    "pricePaise": 18900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_e0f75cf0a1d06285",
+    "category": "Noodle",
+    "name": "Veg Noodle",
+    "pricePaise": 17900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_e3286bb1828b243e",
+    "category": "Noodle",
+    "name": "Singapuri Noodle",
+    "pricePaise": 21900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_c1fd4f44302a8a60",
+    "category": "Noodle",
+    "name": "Mangolian Noodle",
+    "pricePaise": 21900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_f066c73c5695e375",
+    "category": "Rice",
+    "name": "Veg Fried Rice",
+    "pricePaise": 15900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_2c96403a3bc07edd",
+    "category": "Rice",
+    "name": "Schezwan Fried Rice",
+    "pricePaise": 16900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_ed7957ebd65abe5c",
+    "category": "Rice",
+    "name": "Chilli Garlic Fried Rice",
+    "pricePaise": 16900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_d7285b066800e81c",
+    "category": "Rice",
+    "name": "Paneer Fried Rice",
+    "pricePaise": 18900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_f2339c14215d68d8",
+    "category": "Rice",
+    "name": "Mix Fried Rice",
+    "pricePaise": 19900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_acf072c66958b4a5",
+    "category": "Rice",
+    "name": "Tripal Schezwan Fried Rice",
+    "pricePaise": 20900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_254749402673f921",
+    "category": "Rice",
+    "name": "Veg Mangolian Rice",
+    "pricePaise": 21900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_9f647f714542dd08",
+    "category": "Rice",
+    "name": "Veg Hongkong Rice",
+    "pricePaise": 21900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_308a4da14ad733e3",
+    "category": "Chilli",
+    "name": "Paneer Chilli",
+    "pricePaise": 17900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_d0c09951abbda935",
+    "category": "Chilli",
+    "name": "Mushroom Chilli",
+    "pricePaise": 17900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_c8b726895d99dae8",
+    "category": "Chilli",
+    "name": "Corn Chilli",
+    "pricePaise": 16900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_c2fded415b9a0cf4",
+    "category": "Chilli",
+    "name": "Chana Chilli",
+    "pricePaise": 17900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_2947bd09f5d0591b",
+    "category": "Chilli",
+    "name": "Babycorn Chilli",
+    "pricePaise": 17900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_689aebb8c3508826",
+    "category": "Chilli",
+    "name": "Potato Chilli",
+    "pricePaise": 15900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_1fdd6240911e863a",
+    "category": "Appetiser",
+    "name": "Crispy Veg",
+    "pricePaise": 19900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_a8d148c31c34d515",
+    "category": "Appetiser",
+    "name": "Crispy Corn",
+    "pricePaise": 18900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_f2b31d3d43f4f19d",
+    "category": "Appetiser",
+    "name": "Veg Manchurian",
+    "pricePaise": 16900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_95ae3671eff9827b",
+    "category": "Appetiser",
+    "name": "Paneer Dragon",
+    "pricePaise": 19900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_25a177131987896d",
+    "category": "Appetiser",
+    "name": "Paneer 65",
+    "pricePaise": 19900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_1b40e7d41e6db51a",
+    "category": "Appetiser",
+    "name": "Paneer Garlic",
+    "pricePaise": 19900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_7849c0005bce6d11",
+    "category": "Sigdi Dosa",
+    "name": "Chhole Bhature",
+    "pricePaise": 10900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_76f6947383680eae",
+    "category": "Sigdi Dosa",
+    "name": "Paneer Sutti Butti",
+    "pricePaise": 10900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_dc351949a7708eb1",
+    "category": "Sigdi Dosa",
+    "name": "Cheese Corn Ball",
+    "pricePaise": 14900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_5ac16377cd090f3e",
+    "category": "Sigdi Dosa",
+    "name": "Dahi Kawab",
+    "pricePaise": 14900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_8911548f9500bb77",
+    "category": "Sigdi Dosa",
+    "name": "Veg Nuggets",
+    "pricePaise": 9900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_0e7fefd51d00ee2c",
+    "category": "Sigdi Dosa",
+    "name": "Chinese Bhel",
+    "pricePaise": 9900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_fd422f95e7853210",
+    "category": "Combo",
+    "name": "Paneer Chilli With Veg Fried Rice",
+    "pricePaise": 21900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_e29c53ffbdf53ab3",
+    "category": "Combo",
+    "name": "Paneer Chilli With Schezwan Fried Rice",
+    "pricePaise": 22900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_1c33512682239eee",
+    "category": "Combo",
+    "name": "Paneer Chilli With Veg Noodles",
+    "pricePaise": 21900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_0242ceec12548c69",
+    "category": "Combo",
+    "name": "Paneer Chilli With Veg Schezwan Noodles",
+    "pricePaise": 22900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_4ce6a4ab8a375d96",
+    "category": "Combo",
+    "name": "Corn Chilli With Veg Fried Rice",
+    "pricePaise": 19900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_e16646b303e4dec1",
+    "category": "Combo",
+    "name": "Corn Chilli With Schezwan Fried Rice",
+    "pricePaise": 20900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_4b5c61006ee4bc1b",
+    "category": "Combo",
+    "name": "Corn Chilli With Veg Noodles",
+    "pricePaise": 19900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_4f0087fe04edbac8",
+    "category": "Combo",
+    "name": "Corn Chilli With Veg Schezwan Noodles",
+    "pricePaise": 20900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_d81b81806009dc8e",
+    "category": "Combo",
+    "name": "Mushroom Chilli With Veg Fried Rice",
+    "pricePaise": 21900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_8ac5c09fe95e97ca",
+    "category": "Combo",
+    "name": "Mushroom Chilli With Schezwan Fried Rice",
+    "pricePaise": 22900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_aec911831a377bd3",
+    "category": "Combo",
+    "name": "Mushroom Chilli With Veg Noodles",
+    "pricePaise": 21900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_5327ed16f880cac8",
+    "category": "Combo",
+    "name": "Mushroom Chilli With Veg Schezwan Noodles",
+    "pricePaise": 22900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_14afc429db2d0c7e",
+    "category": "Combo",
+    "name": "Potato Chilli With Veg Fried Rice",
+    "pricePaise": 18900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_6cc0064e4def7aa5",
+    "category": "Combo",
+    "name": "Potato Chilli With Schezwan Fried Rice",
+    "pricePaise": 19900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_5b85fcd8dd3bb046",
+    "category": "Combo",
+    "name": "Potato Chilli With Veg Noodles",
+    "pricePaise": 18900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_0fec57bff0406b37",
+    "category": "Combo",
+    "name": "Potato Chilli With Veg Schezwan Noodles",
+    "pricePaise": 19900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_a4859da7bf858f18",
+    "category": "Combo",
+    "name": "Veg Manchurian With Fried Rice",
+    "pricePaise": 18900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_1544b48bc4ba3e32",
+    "category": "Combo",
+    "name": "Veg Manchurian With Schezwan Fried Rice",
+    "pricePaise": 19900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_13ddb67be5096795",
+    "category": "Combo",
+    "name": "Veg Manchurian With Veg Noodles",
+    "pricePaise": 18900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_ed314e1f12930a95",
+    "category": "Combo",
+    "name": "Veg Manchurian With Veg Schezwan Noodles",
+    "pricePaise": 19900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_9fc8d11af22bb571",
+    "category": "Soup",
+    "name": "Veg Hot N Sour Soup",
+    "pricePaise": 9900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_1a5b01a27de336d7",
+    "category": "Soup",
+    "name": "Veg Manchow Soup",
+    "pricePaise": 9900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_7bbfdcb37f558118",
+    "category": "Soup",
+    "name": "Lemon Coriander Soup",
+    "pricePaise": 9900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_d3ec9a0bc0da18a9",
+    "category": "Soup",
+    "name": "Veg Sweetcorn Soup",
+    "pricePaise": 9900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_fc1310410f2d7857",
+    "category": "Soup",
+    "name": "Veg Thupka Soup",
+    "pricePaise": 10900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_e9912930144888db",
+    "category": "Main Course",
+    "name": "Paneer Hyderabadi",
+    "pricePaise": 28900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_3a7a008cddcc13d0",
+    "category": "Main Course",
+    "name": "Paneer Tikka Masala",
+    "pricePaise": 31900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_16d68dc291d8f888",
+    "category": "Main Course",
+    "name": "Paneer Butter Masala",
+    "pricePaise": 29900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_fb39485f0cc3de1b",
+    "category": "Main Course",
+    "name": "Paneer Makhni",
+    "pricePaise": 30900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_2aec9023eba5f8e8",
+    "category": "Main Course",
+    "name": "Paneer Kolhapuri",
+    "pricePaise": 29900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_e53d1a8371d2d6c2",
+    "category": "Main Course",
+    "name": "Paneer Pasanda",
+    "pricePaise": 30900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_913b29ce722636aa",
+    "category": "Main Course",
+    "name": "Paneer Lababdar",
+    "pricePaise": 31900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_aedbf851f832d245",
+    "category": "Main Course",
+    "name": "Paneer Angara",
+    "pricePaise": 31900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_6795c5e56fb35d49",
+    "category": "Main Course",
+    "name": "Paneer Korma",
+    "pricePaise": 30900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_dafc6d758d505807",
+    "category": "Main Course",
+    "name": "Paneer Malai Kofta",
+    "pricePaise": 31900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_d540d110a5dbcf47",
+    "category": "Main Course",
+    "name": "Paneer Patiyala",
+    "pricePaise": 29900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_9a252a208d36b570",
+    "category": "Main Course",
+    "name": "Paneer Punjabi",
+    "pricePaise": 29900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_e30bc526a1e256ee",
+    "category": "Main Course",
+    "name": "Matar Paneer",
+    "pricePaise": 28900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_63c87e342f11565d",
+    "category": "Main Course",
+    "name": "Lahsuni Palak Paneer",
+    "pricePaise": 28900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_16c42074d61b354f",
+    "category": "Main Course",
+    "name": "Paneer Chatpata",
+    "pricePaise": 28900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_4fb50a4ec6c53179",
+    "category": "Main Course",
+    "name": "Punjabi Soya Chaap",
+    "pricePaise": 26900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_41795eba60f9eaf1",
+    "category": "Main Course",
+    "name": "Soya Chaap Butter Masala",
+    "pricePaise": 27900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_4db72b118f1b9967",
+    "category": "Main Course",
+    "name": "Makhni Soya Chaap",
+    "pricePaise": 28900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_dc63448e319b9938",
+    "category": "Main Course",
+    "name": "Hyderabadi Soya Chaap",
+    "pricePaise": 28900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_e3b6a768d28a9373",
+    "category": "Barbeque (Tandoor)",
+    "name": "Paneer Nijami Tikka",
+    "pricePaise": 27900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_b80b30cea78cc658",
+    "category": "Barbeque (Tandoor)",
+    "name": "Paneer Afgani Tikka",
+    "pricePaise": 28900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_e623588b7625bfc7",
+    "category": "Barbeque (Tandoor)",
+    "name": "Paneer Malai Tikka",
+    "pricePaise": 28900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_4bd995e603c26492",
+    "category": "Barbeque (Tandoor)",
+    "name": "Paneer Banjara Tikka",
+    "pricePaise": 26900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_a91657585b7b3c92",
+    "category": "Barbeque (Tandoor)",
+    "name": "Paneer Multani Tikka",
+    "pricePaise": 27900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_90d80d1d9ef1cd31",
+    "category": "Barbeque (Tandoor)",
+    "name": "Paneer Achari Tikka",
+    "pricePaise": 27900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_7f901da1725fe6b2",
+    "category": "Barbeque (Tandoor)",
+    "name": "Paneer Hariyali Tikka",
+    "pricePaise": 27900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_587ba4898fcbd8ec",
+    "category": "Barbeque (Tandoor)",
+    "name": "Mushroom Multani Tikka",
+    "pricePaise": 26900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_44645fd7c5182d59",
+    "category": "Barbeque (Tandoor)",
+    "name": "Tandoori Mushroom Tikka",
+    "pricePaise": 26900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_9db988d8fbb9a2c6",
+    "category": "Barbeque (Tandoor)",
+    "name": "Afgani Soya Chaap",
+    "pricePaise": 26900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_4c7932c4c872fa69",
+    "category": "Barbeque (Tandoor)",
+    "name": "Tandoori Soya Chaap",
+    "pricePaise": 25900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_390889d9e16d15dc",
+    "category": "Barbeque (Tandoor)",
+    "name": "Achari Soya Chaap",
+    "pricePaise": 25900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_9f612dba76930753",
+    "category": "Add On:-(Breads)",
+    "name": "Lachha Paratha",
+    "pricePaise": 5500,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_090afcf78e24e2ba",
+    "category": "Rice",
+    "name": "Jeera Rice",
+    "pricePaise": 10900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_f41ea5949d99e899",
+    "category": "Rice",
+    "name": "Green Peas Pulav",
+    "pricePaise": 12900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_8a521e2452e71ecc",
+    "category": "Rice",
+    "name": "Veg Biryani",
+    "pricePaise": 14900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_d76f7e6b4a739273",
+    "category": "Rice",
+    "name": "Paneer Tikka Biryani",
+    "pricePaise": 16900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_b0f5e211e393a2b5",
+    "category": "Thali",
+    "name": "Normal Thali",
+    "pricePaise": 14900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_cf256df8c10cbed0",
+    "category": "Thali",
+    "name": "Deluxe Thali",
+    "pricePaise": 19900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_0d5fdf2ebaae3752",
+    "category": "Pasta (Served With Garlic Bread)",
+    "name": "Red Sauce Pasta",
+    "pricePaise": 17900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_0017ffe83f8a4b6f",
+    "category": "Pasta (Served With Garlic Bread)",
+    "name": "White Sauce Pasta",
+    "pricePaise": 18900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_dda3931d6c75822d",
+    "category": "Pasta (Served With Garlic Bread)",
+    "name": "Pink Sauce Pasta",
+    "pricePaise": 18900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_aec7f62d25865c3b",
+    "category": "Pasta (Served With Garlic Bread)",
+    "name": "Chinese Style Pasta",
+    "pricePaise": 18900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_bc5643c4fba60239",
+    "category": "Pizza",
+    "name": "Margrita Pizza",
+    "pricePaise": 19900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_7464010514a3c603",
+    "category": "Pizza",
+    "name": "Golden Corn Pizza",
+    "pricePaise": 20900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_b24075843feeee3a",
+    "category": "Pizza",
+    "name": "Mexican Pizza",
+    "pricePaise": 21900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_f52ed8bd641c194c",
+    "category": "Pizza",
+    "name": "Tandoori Paneer Pizza",
+    "pricePaise": 24900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_f1833102e89ec2bf",
+    "category": "Brownie",
+    "name": "Brownie With Chocolate",
+    "pricePaise": 10900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_eb1eb17b9ee76201",
+    "category": "Brownie",
+    "name": "Brownie With Icecream",
+    "pricePaise": 12900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_1749fb54e2f211de",
+    "category": "Brownie",
+    "name": "Sizzling Brownie",
+    "pricePaise": 15900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_75de8543bd5da38b",
+    "category": "Sandwich",
+    "name": "Garden Sandwich",
+    "pricePaise": 9900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_167f47f07f7cd7b8",
+    "category": "Sandwich",
+    "name": "Corn Cheese Sandwich",
+    "pricePaise": 10900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_5b7013fcecfcb725",
+    "category": "Sandwich",
+    "name": "Spinach Corn Sandwich",
+    "pricePaise": 11900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_7cf852bbc9484df0",
+    "category": "Sandwich",
+    "name": "Tandoori Paneer Sandwich",
+    "pricePaise": 12900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_92ab22c4f6ccbe60",
+    "category": "Sandwich",
+    "name": "Mumbai Style Sandwich",
+    "pricePaise": 12900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_a04db535025cc2da",
+    "category": "Sandwich",
+    "name": "Chocolate Sandwich",
+    "pricePaise": 12900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_8c3baeeb4311330a",
+    "category": "Milk Shake",
+    "name": "Oreo Milkshake",
+    "pricePaise": 14900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_acf20b0a14b57b7f",
+    "category": "Milk Shake",
+    "name": "Kitkat Milkshake",
+    "pricePaise": 14900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_510a4564137b710b",
+    "category": "Milk Shake",
+    "name": "Alphanso Mango Milkshake",
+    "pricePaise": 14900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_3c2e26ed9a6fba6f",
+    "category": "Milk Shake",
+    "name": "Strawberry Milkshake",
+    "pricePaise": 13900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_86c626f41eb9e091",
+    "category": "Milk Shake",
+    "name": "Chocolate Milkshake",
+    "pricePaise": 13900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_f0ac0cf3fed6f330",
+    "category": "Milk Shake",
+    "name": "Blueberry Milkshake",
+    "pricePaise": 14900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_bdb6479f54ec8d0e",
+    "category": "Burger (Served With Chips)",
+    "name": "Aloo Tikki Burger",
+    "pricePaise": 8900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_2f929f9a164c9f7d",
+    "category": "Burger (Served With Chips)",
+    "name": "Paneer Tikki Burger",
+    "pricePaise": 10900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_adf589ba2336bcbb",
+    "category": "Burger (Served With Chips)",
+    "name": "Nachos Burger",
+    "pricePaise": 10900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_7e7d6fa96627d699",
+    "category": "Mojito",
+    "name": "Coolblue Mojito",
+    "pricePaise": 13900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_db2a32e25c28ba03",
+    "category": "Mojito",
+    "name": "Virgin Mojito",
+    "pricePaise": 13900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_124f86460123f9f9",
+    "category": "Mojito",
+    "name": "Bubblegum Mojito",
+    "pricePaise": 14900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_52c7078e7a4188b3",
+    "category": "Mojito",
+    "name": "Cucumber Mojito",
+    "pricePaise": 14900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_5d66d467094f6ae8",
+    "category": "Mojito",
+    "name": "Watermelon Mojito",
+    "pricePaise": 14900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_ed735a9c1712959e",
+    "category": "Mojito",
+    "name": "Lime Ginger Mojito",
+    "pricePaise": 13900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_8e7912adf212ed4d",
+    "category": "Cooler",
+    "name": "Strawberry Cooler",
+    "pricePaise": 11900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_1163c85e54ea86d0",
+    "category": "Cooler",
+    "name": "Mango Cooler",
+    "pricePaise": 11900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_73d805a961adfe92",
+    "category": "Cooler",
+    "name": "Coolblue Cooler",
+    "pricePaise": 11900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_94a0f8af5c486bbb",
+    "category": "Cooler",
+    "name": "Kiwi Cooler",
+    "pricePaise": 11900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_bc2b4ed9b9bccaae",
+    "category": "Cooler",
+    "name": "Watermelon Cooler",
+    "pricePaise": 11900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_8d0b739ed1117ed2",
+    "category": "Cooler",
+    "name": "Cucumber Cooler",
+    "pricePaise": 12900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_5c558a1260d0d4a5",
+    "category": "Drinks",
+    "name": "Aam Panna",
+    "pricePaise": 6900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_8db8d5e3043df472",
+    "category": "Drinks",
+    "name": "Butter Milk",
+    "pricePaise": 6900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_db83e0ea7227c699",
+    "category": "Drinks",
+    "name": "Masala Colddrink",
+    "pricePaise": 6900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_84d5903cad451dfb",
+    "category": "Drinks",
+    "name": "Lime Soda",
+    "pricePaise": 2900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_ce2bef1bd5e04503",
+    "category": "Thali",
+    "name": "Poori Subji",
+    "pricePaise": 10900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_bfd5ff95ea029f13",
+    "category": "Sigdi Dosa",
+    "name": "Onion Dosa",
+    "pricePaise": 8900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_5882131900f768fd",
+    "category": "Sigdi Dosa",
+    "name": "Jini Dosa",
+    "pricePaise": 12900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_2ccfa392208f1ff6",
+    "category": "Sigdi Dosa",
+    "name": "Mysore Masala Dosa",
+    "pricePaise": 12900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_aef868187d8cc869",
+    "category": "Sigdi Dosa",
+    "name": "Schezwan Dosa",
+    "pricePaise": 11900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_5dd1021d90c8217d",
+    "category": "Sigdi Dosa",
+    "name": "Corn Cheese Dosa",
+    "pricePaise": 11900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_29e1175a9f5e50c8",
+    "category": "Sigdi Dosa",
+    "name": "Paneer Masala Dosa",
+    "pricePaise": 12900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_6554a208a07f5603",
+    "category": "Sigdi Dosa",
+    "name": "Paper Masala Dosa",
+    "pricePaise": 10900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_85ef1d5ee80c750c",
+    "category": "Sigdi Dosa",
+    "name": "Plain Dosa",
+    "pricePaise": 5900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_abb9ce65277c4eac",
+    "category": "Sigdi Dosa",
+    "name": "Masala Dosa",
+    "pricePaise": 7900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_a1178801a14d15bf",
+    "category": "Sigdi Dosa",
+    "name": "Cutting Dosa",
+    "pricePaise": 8900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_e1c47cc97233c35a",
+    "category": "Sigdi Dosa",
+    "name": "Butter Masala Dosa",
+    "pricePaise": 8900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_b94e8c966680cbd7",
+    "category": "Drinks",
+    "name": "Tea",
+    "pricePaise": 1500,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_6aa34770b2299f6b",
+    "category": "Drinks",
+    "name": "Coffee",
+    "pricePaise": 2000,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_ba96c4a8ab39c60a",
+    "category": "Drinks",
+    "name": "Water",
+    "pricePaise": 2000,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_0f0ae5e1292cc65d",
+    "category": "Rice",
+    "name": "Steam Rice",
+    "pricePaise": 9900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_c38548cb71566d9a",
+    "category": "Drinks",
+    "name": "Cold Drink",
+    "pricePaise": 2000,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_d65ef09dd7dce787",
+    "category": "Main Course",
+    "name": "Gobhi Mutter",
+    "pricePaise": 17000,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_c21c0c78d349b4fe",
+    "category": "Cooler",
+    "name": "Ice Cream",
+    "pricePaise": 4900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_59885ae03036636f",
+    "category": "Cooler",
+    "name": "Ice Cream Cone",
+    "pricePaise": 5000,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_ef2cc9d1d0728b1d",
+    "category": "Appetiser",
+    "name": "Masala Papad",
+    "pricePaise": 5000,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_9a6f99ceeb3bd3f9",
+    "category": "Cooler",
+    "name": "Dolly",
+    "pricePaise": 3000,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_3d19ba80e717d7dd",
+    "category": "Cooler",
+    "name": "Choco Dolly",
+    "pricePaise": 2000,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_8c34764b0da961e6",
+    "category": "Main Course",
+    "name": "Raita",
+    "pricePaise": 9000,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_33eaa15d48c910eb",
+    "category": "Chilli",
+    "name": "99 Chilly",
+    "pricePaise": 9900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_98b51b209cbcca64",
+    "category": "Thali",
+    "name": "Dal Khichadi",
+    "pricePaise": 14900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_978d93c96a2db644",
+    "category": "Main Course",
+    "name": "Dal Fry",
+    "pricePaise": 12900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_55745fad50ee10e1",
+    "category": "Main Course",
+    "name": "Dal Tadka",
+    "pricePaise": 13900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_2dee91d1e992ae0a",
+    "category": "Main Course",
+    "name": "Mushroom Masala",
+    "pricePaise": 29900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_555b2f67e3b65c3d",
+    "category": "Main Course",
+    "name": "Tawa Paratha",
+    "pricePaise": 4000,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_688bb4faef9a21f8",
+    "category": "Main Course",
+    "name": "Mix Veg",
+    "pricePaise": 28900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_5aaf6c0ae7e50606",
+    "category": "Main Course",
+    "name": "Green Salad",
+    "pricePaise": 8000,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_0945bafdb03ea4d5",
+    "category": "Main Course",
+    "name": "Plane Curd",
+    "pricePaise": 4900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_54b7d100af838cb4",
+    "category": "Main Course",
+    "name": "Papad Fry",
+    "pricePaise": 3000,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_7e0bd37a059f1866",
+    "category": "Milk Shake",
+    "name": "Cold Coffee",
+    "pricePaise": 13900,
+    "taxBps": 500,
+    "active": true
+  },
+  {
+    "id": "item_1dc580f63a5d3843",
+    "category": "Appetiser",
+    "name": "Veg Spring Roll",
+    "pricePaise": 25900,
+    "taxBps": 500,
+    "active": true
+  }
+]
