@@ -194,11 +194,39 @@ function addCustomItem() {
 
 async function selectTable(tableId) {
   try {
+    const knownTable = state.tables.find(table => table.id === tableId)
+    if (knownTable?.pendingPrintedBillId) return openPrintedTable(tableId)
     const res = await api(`/api/tables/${encodeURIComponent(tableId)}/order`)
     state.selectedTableId = tableId
     state.orderMeta = { ...state.orderMeta, table: res.table.name }
     state.cart = (res.order?.items || []).map(item => ({ ...item }))
     state.lastBill = null
+    state.orderUnlockPass = ''
+    state.tab = 'order'
+    setMsg('')
+  } catch (e) { setMsg('', e.message) }
+}
+
+async function openPrintedTable(tableId) {
+  try {
+    const res = await api(`/api/tables/${encodeURIComponent(tableId)}/order`)
+    const printedBill = res.pendingPrintedBill
+    if (!printedBill) {
+      await loadTables()
+      state.selectedTableId = tableId
+      state.orderMeta = { ...state.orderMeta, table: res.table.name }
+      state.cart = (res.order?.items || []).map(item => ({ ...item }))
+      state.lastBill = null
+      state.orderUnlockPass = ''
+      state.tab = 'order'
+      return setMsg('')
+    }
+    state.selectedTableId = tableId
+    state.orderMeta = { ...state.orderMeta, table: res.table.name }
+    state.cart = (res.order?.items || []).map(item => ({ ...item }))
+    state.lastBill = { id: printedBill.id, number: printedBill.number }
+    state.lastPrintable = ''
+    state.lastDoc = { kind: 'BILL', id: printedBill.id }
     state.orderUnlockPass = ''
     state.tab = 'order'
     setMsg('')
@@ -583,7 +611,7 @@ function tablesView() {
       <div class="sectionBar"><b>${escapeHtml(section)}</b><span>${state.tables.filter(t => (t.section || 'Dining') === section && t.status === 'occupied').length} running</span></div>
       <div class="tableGrid">
         ${state.tables.filter(t => (t.section || 'Dining') === section).map(table => `
-          <div class="tableCard ${table.status}" onclick="selectTable('${escapeHtml(table.id)}')" role="button" tabindex="0">
+          <div class="tableCard ${table.status}" onclick="${table.pendingPrintedBillId ? `openPrintedTable('${escapeHtml(table.id)}')` : `selectTable('${escapeHtml(table.id)}')`}" role="button" tabindex="0">
             <span class="badge">${table.status === 'occupied' ? 'RUNNING' : 'FREE'}</span>
             <b>${escapeHtml(table.name)}</b>
             <span>${table.capacity ? `${table.capacity} pax` : 'Dining'}</span>
@@ -615,6 +643,27 @@ function menuResultsHtml() {
 function orderView() {
   const t = totals()
   const selected = state.tables.find(table => table.id === state.selectedTableId)
+  if (selected?.pendingPrintedBillId) {
+    return `<main class="screen">
+      <div class="billHead">
+        <div>
+          <div class="kicker">BILL PRINTED</div>
+          <h1 class="title">${escapeHtml(selected.name)}</h1>
+          <div class="sub">${escapeHtml(selected.pendingPrintedBillNumber || 'Printed bill')} - clear table from Floor for a new order.</div>
+        </div>
+        <button class="btn secondary compact" onclick="state.tab='tables';render()">Tables</button>
+      </div>
+      <div class="panel actionPanel">
+        <b>${escapeHtml(selected.pendingPrintedBillNumber || 'Bill')} locked</b>
+        <div class="sub">Is table ka bill print ho chuka hai. Clear hone tak yahan sirf reprint chalega.</div>
+        <div class="actionRow">
+          <button class="btn dark" onclick="printBillById('${escapeHtml(selected.pendingPrintedBillId)}')">Reprint Bill</button>
+        </div>
+      </div>
+      <pre id="printBox" class="receipt hide"></pre>
+      ${messages()}
+    </main>`
+  }
   return `<main class="screen">
     <div class="billHead">
       <div>
@@ -777,5 +826,5 @@ function render() {
   app.innerHTML = shell((views[state.tab] || orderView)())
 }
 
-Object.assign(window, { state, render, setupOwner, login, logout, addItemById, changeQty, addCustomItem, sendKot, makeBill, printLast, printDoc, printBillById, receiptFor, addMenuItem, addTable, addUser, downloadExport, selectTable, saveTableOrder, setMeta, setMenuSearch, openParcel, clearCart, clearAfterBill, clearTableFromFloor, savePrinterSetup, testPrint, saveGstSetup, renderTheftReport, renderReport })
+Object.assign(window, { state, render, setupOwner, login, logout, addItemById, changeQty, addCustomItem, sendKot, makeBill, printLast, printDoc, printBillById, receiptFor, addMenuItem, addTable, addUser, downloadExport, selectTable, openPrintedTable, saveTableOrder, setMeta, setMenuSearch, openParcel, clearCart, clearAfterBill, clearTableFromFloor, savePrinterSetup, testPrint, saveGstSetup, renderTheftReport, renderReport })
 boot()

@@ -224,6 +224,13 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     const clearable = tablesAfterPrint.body.tables.find(table => table.id === tableId)
     assert.equal(clearable.pendingPrintedBillId, bill.body.bill.id)
 
+    const duplicatePrintedBill = await jsonFetch(`${baseUrl}/api/bill`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ tableId, paymentMethod: 'UPI', items: [{ menuItemId, quantity: 2 }, { menuItemId: secondMenuItemId, quantity: 1 }] }),
+    })
+    assert.equal(duplicatePrintedBill.res.status, 409)
+
     const clearedTable = await jsonFetch(`${baseUrl}/api/tables/${encodeURIComponent(tableId)}/clear`, {
       method: 'POST',
       headers: authHeaders,

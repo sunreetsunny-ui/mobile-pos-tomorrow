@@ -456,7 +456,8 @@ async function handleApi(req, res, data) {
     const table = tableById(data, tableId)
     if (!table) return send(res, 404, { error: 'Table not found' })
     const order = data.runningOrders.find(entry => entry.tableId === tableId)
-    return send(res, 200, { table, order: order || { tableId, items: [], updatedAt: null } })
+    const printedBill = order && printedBillForTable(data, tableId, order.updatedAt)
+    return send(res, 200, { table, order: order || { tableId, items: [], updatedAt: null }, pendingPrintedBill: printedBill ? { id: printedBill.id, number: printedBill.number } : null })
   }
 
   if (tableOrderMatch && req.method === 'PUT') {
@@ -636,6 +637,9 @@ async function handleApi(req, res, data) {
     if (body.tableId && !table) return send(res, 404, { error: 'Table not found' })
     if (table) {
       const existing = data.runningOrders.find(entry => entry.tableId === table.id)
+      if (printedBillForTable(data, table.id, existing && existing.updatedAt)) {
+        return send(res, 409, { error: 'Bill already printed. Clear table before making a new bill.' })
+      }
       try {
         assertKotLockedLinesAllowed(existing && existing.items, items, body.passcode)
       } catch (e) {
