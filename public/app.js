@@ -350,6 +350,16 @@ function printDoc(kind, id) {
   setTimeout(printLast, 50)
 }
 
+async function printBillById(id) {
+  try {
+    const res = await api(`/api/bills/${encodeURIComponent(id)}`)
+    state.lastPrintable = receiptFor('BILL', res.bill)
+    state.lastDoc = { kind: 'BILL', id: res.bill.id }
+    render()
+    setTimeout(printLast, 50)
+  } catch (e) { setMsg('', e.message) }
+}
+
 function savePrinterSetup() {
   state.printer = {
     paper: $('#printerPaper').value,
@@ -578,7 +588,7 @@ function tablesView() {
             <b>${escapeHtml(table.name)}</b>
             <span>${table.capacity ? `${table.capacity} pax` : 'Dining'}</span>
             ${table.status === 'occupied' ? `<strong>${table.itemCount} items${table.pendingPrintedBillNumber ? `<br>Printed ${escapeHtml(table.pendingPrintedBillNumber)}` : ''}</strong>` : '<em>Open order</em>'}
-            ${table.status === 'occupied' ? `<div class="tableActions"><button class="miniBtn" onclick="event.stopPropagation();selectTable('${escapeHtml(table.id)}')">${table.pendingPrintedBillId ? 'See Table' : 'Print Bill'}</button>${table.pendingPrintedBillId ? `<button class="miniBtn danger" onclick="event.stopPropagation();clearTableFromFloor('${escapeHtml(table.id)}','${escapeHtml(table.name)}')">Clear</button>` : ''}</div>` : ''}
+            ${table.status === 'occupied' ? `<div class="tableActions"><button class="miniBtn" onclick="event.stopPropagation();${table.pendingPrintedBillId ? `printBillById('${escapeHtml(table.pendingPrintedBillId)}')` : `selectTable('${escapeHtml(table.id)}')`}">${table.pendingPrintedBillId ? 'Reprint' : 'Print Bill'}</button>${table.pendingPrintedBillId ? `<button class="miniBtn danger" onclick="event.stopPropagation();clearTableFromFloor('${escapeHtml(table.id)}','${escapeHtml(table.name)}')">Clear</button>` : ''}</div>` : ''}
           </div>
         `).join('')}
       </div>
@@ -767,5 +777,5 @@ function render() {
   app.innerHTML = shell((views[state.tab] || orderView)())
 }
 
-Object.assign(window, { state, render, setupOwner, login, logout, addItemById, changeQty, addCustomItem, sendKot, makeBill, printLast, printDoc, receiptFor, addMenuItem, addTable, addUser, downloadExport, selectTable, saveTableOrder, setMeta, setMenuSearch, openParcel, clearCart, clearAfterBill, clearTableFromFloor, savePrinterSetup, testPrint, saveGstSetup, renderTheftReport, renderReport })
+Object.assign(window, { state, render, setupOwner, login, logout, addItemById, changeQty, addCustomItem, sendKot, makeBill, printLast, printDoc, printBillById, receiptFor, addMenuItem, addTable, addUser, downloadExport, selectTable, saveTableOrder, setMeta, setMenuSearch, openParcel, clearCart, clearAfterBill, clearTableFromFloor, savePrinterSetup, testPrint, saveGstSetup, renderTheftReport, renderReport })
 boot()

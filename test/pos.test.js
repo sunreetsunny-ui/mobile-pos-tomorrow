@@ -121,8 +121,7 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
       body: JSON.stringify({ tableId, items: [{ menuItemId, quantity: 2 }] }),
     })
     assert.equal(kot.res.status, 200)
-    assert.match(kot.body.kot.number, /^KOT-/)
-    assert.doesNotMatch(kot.body.kot.number, /^KOT-\d{5}$/)
+    assert.equal(kot.body.kot.number, 'KOT-345')
     assert.equal(kot.body.kot.table, 'Garden 1')
     assert.equal(kot.body.kot.items.length, 1)
     assert.equal(kot.body.kot.items[0].quantity, 2)
@@ -163,8 +162,7 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
       body: JSON.stringify({ tableId, paymentMethod: 'UPI', items: [{ menuItemId, quantity: 2 }, { menuItemId: secondMenuItemId, quantity: 1 }] }),
     })
     assert.equal(bill.res.status, 200)
-    assert.match(bill.body.bill.number, /^INV-/)
-    assert.doesNotMatch(bill.body.bill.number, /^INV-\d{5}$/)
+    assert.equal(bill.body.bill.number, 'INV-345')
 
     const tablesAfterBill = await jsonFetch(`${baseUrl}/api/tables`, { headers: { Cookie: cookie } })
     const stillOccupied = tablesAfterBill.body.tables.find(table => table.id === tableId)
@@ -197,6 +195,10 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     assert.equal(billsAfterReprint.res.status, 200)
     assert.equal(billsAfterReprint.body.bills.filter(entry => entry.id === bill.body.bill.id).length, 1)
     assert.equal(billsAfterReprint.body.bills.find(entry => entry.id === bill.body.bill.id).number, bill.body.bill.number)
+
+    const sameBillFetch = await jsonFetch(`${baseUrl}/api/bills/${encodeURIComponent(bill.body.bill.id)}`, { headers: { Cookie: cookie } })
+    assert.equal(sameBillFetch.res.status, 200)
+    assert.equal(sameBillFetch.body.bill.number, 'INV-345')
 
     const kotPrint = await jsonFetch(`${baseUrl}/api/prints`, {
       method: 'POST',
@@ -262,6 +264,7 @@ test('phone-only POS setup, login, CSRF, KOT, bill, and report flow', async () =
     assert.equal(directBill.res.status, 200)
     assert.ok(directBill.body.autoKot)
     assert.match(directBill.body.autoKot.number, /^KOT-/)
+    assert.equal(directBill.body.bill.number, 'INV-346')
 
     const report = await jsonFetch(`${baseUrl}/api/reports/today`, { headers: { Cookie: cookie } })
     assert.equal(report.res.status, 200)

@@ -18,14 +18,8 @@ const loginFailures = new Map()
 function nowIso() { return new Date().toISOString() }
 function id(prefix) { return `${prefix}_${crypto.randomUUID()}` }
 
-function displayNumber(kind, sequence, at = new Date()) {
-  const date = new Date(at)
-  const yy = String(date.getFullYear()).slice(-2)
-  const mm = String(date.getMonth() + 1).padStart(2, '0')
-  const dd = String(date.getDate()).padStart(2, '0')
-  const salt = kind === 'KOT' ? 137 : 491
-  const mixed = ((Number(sequence) * 73 + salt) % 10000 + 10000) % 10000
-  return `${kind}-${yy}${mm}${dd}-${String(mixed).padStart(4, '0')}`
+function displayNumber(kind, sequence) {
+  return `${kind}-${Number(sequence) + 344}`
 }
 
 function nextDocNumber(data, kind) {
@@ -560,6 +554,14 @@ async function handleApi(req, res, data) {
 
   if (route === 'GET /api/bills') {
     return send(res, 200, { bills: withPrintCounts(data.bills.slice(-50).reverse(), 'BILL', data) })
+  }
+
+  const billMatch = url.pathname.match(/^\/api\/bills\/([^/]+)$/)
+  if (billMatch && req.method === 'GET') {
+    const billId = decodeURIComponent(billMatch[1])
+    const bill = data.bills.find(entry => entry.id === billId)
+    if (!bill) return send(res, 404, { error: 'Bill not found' })
+    return send(res, 200, { bill: withPrintCounts([bill], 'BILL', data)[0] })
   }
 
   if (route === 'POST /api/kot') {
