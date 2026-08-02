@@ -1,6 +1,8 @@
 const $ = (sel) => document.querySelector(sel)
 const app = $('#app')
 
+const emptyMeta = () => ({ table: '', customerName: '', paymentMethod: 'Cash', paidAmount: '', note: '' })
+
 const state = {
   status: null,
   user: null,
@@ -10,17 +12,18 @@ const state = {
   category: 'All',
   tables: [],
   selectedTableId: '',
-  orderMeta: { table: '', customerName: '', paymentMethod: 'Cash', paidAmount: '', note: '' },
+  orderMeta: emptyMeta(),
   cart: [],
   recentKots: [],
   recentBills: [],
+  today: { billCount: 0, totalPaise: 0, bills: [] },
   tab: 'tables',
   lastPrintable: '',
   message: '',
   error: '',
 }
 
-const money = (paise = 0) => `₹${(Number(paise || 0) / 100).toFixed(2)}`
+const money = (paise = 0) => `\u20b9${(Number(paise || 0) / 100).toFixed(2)}`
 const toPaise = (value) => Math.round((Number(value) || 0) * 100)
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]))
 
@@ -65,15 +68,32 @@ async function loadTables() {
   state.tables = res.tables || []
 }
 
+async function loadToday() {
+  try {
+    state.today = await api('/api/reports/today')
+  } catch {
+    state.today = { billCount: 0, totalPaise: 0, bills: [] }
+  }
+}
+
 async function loadStartupData() {
-  await loadMenu()
-  await loadTables()
+  await Promise.all([loadMenu(), loadTables(), loadToday()])
 }
 
 function totals(items = state.cart) {
   const subtotal = items.reduce((sum, item) => sum + item.pricePaise * item.quantity, 0)
   const tax = items.reduce((sum, item) => sum + Math.round(item.pricePaise * item.quantity * (item.taxBps || 0) / 10000), 0)
   return { subtotal, tax, total: subtotal + tax, count: items.reduce((sum, item) => sum + item.quantity, 0) }
+}
+
+function floorStats() {
+  const occupied = state.tables.filter(table => table.status === 'occupied')
+  return {
+    total: state.tables.length,
+    occupied: occupied.length,
+    available: state.tables.length - occupied.length,
+    runningPaise: occupied.reduce((sum, table) => sum + Number(table.totalPaise || 0), 0),
+  }
 }
 
 function itemPayload(item) {
@@ -112,6 +132,19 @@ function changeQty(index, delta) {
   render()
 }
 
+function clearCart() {
+  state.cart = []
+  render()
+}
+
+function openParcel() {
+  state.selectedTableId = ''
+  state.orderMeta = { ...emptyMeta(), table: 'Parcel' }
+  state.cart = []
+  state.tab = 'order'
+  render()
+}
+
 function addCustomItem() {
   const name = $('#customName').value.trim()
   const price = toPaise($('#customPrice').value)
@@ -128,7 +161,7 @@ async function selectTable(tableId) {
   try {
     const res = await api(`/api/tables/${encodeURIComponent(tableId)}/order`)
     state.selectedTableId = tableId
-    state.orderMeta.table = res.table.name
+    state.orderMeta = { ...state.orderMeta, table: res.table.name }
     state.cart = (res.order?.items || []).map(item => ({ ...item }))
     state.tab = 'order'
     setMsg('')
@@ -157,7 +190,7 @@ function receiptFor(kind, doc) {
   lines.push('------------------------------')
   for (const item of doc.items || []) {
     const qty = item.quantity || 1
-    const total = (item.totalPaise || item.pricePaise * qty)
+    const total = item.totalPaise || item.pricePaise * qty
     lines.push(`${qty} x ${item.name}`)
     lines.push(`    ${money(total)}`)
     if (item.reason) lines.push(`    custom: ${item.reason}`)
@@ -175,6 +208,7 @@ function receiptFor(kind, doc) {
 
 async function sendKot() {
   try {
+    if (!state.cart.length) throw new Error('Add at least one item before KOT')
     const table = state.orderMeta.table.trim()
     const note = state.orderMeta.note.trim()
     const res = await api('/api/kot', { method: 'POST', body: JSON.stringify({ tableId: state.selectedTableId || undefined, table, note, items: state.cart.map(itemPayload) }) })
@@ -186,6 +220,7 @@ async function sendKot() {
 
 async function makeBill() {
   try {
+    if (!state.cart.length) throw new Error('Add at least one item before bill')
     const table = state.orderMeta.table.trim()
     const customerName = state.orderMeta.customerName.trim()
     const paymentMethod = state.orderMeta.paymentMethod
@@ -194,8 +229,9 @@ async function makeBill() {
     state.lastPrintable = receiptFor('BILL', res.bill)
     state.cart = []
     state.selectedTableId = ''
-    state.orderMeta = { table: '', customerName: '', paymentMethod: 'Cash', paidAmount: '', note: '' }
+    state.orderMeta = emptyMeta()
     await loadTables()
+    await loadToday()
     setMsg(`Bill ${res.bill.number} saved`)
   } catch (e) { setMsg('', e.message) }
 }
@@ -252,7 +288,7 @@ async function logout() {
   state.cart = []
   state.tables = []
   state.selectedTableId = ''
-  state.orderMeta = { table: '', customerName: '', paymentMethod: 'Cash', paidAmount: '', note: '' }
+  state.orderMeta = emptyMeta()
   render()
 }
 
@@ -299,14 +335,17 @@ async function addTable() {
 async function renderReport() {
   try {
     const report = await api('/api/reports/today')
+    state.today = report
     $('#reportBox').innerHTML = `
-      <div class="grid2">
-        <div class="panel"><div class="sub">Bills</div><div class="title">${report.billCount}</div></div>
-        <div class="panel"><div class="sub">Sales</div><div class="title">${money(report.totalPaise)}</div></div>
+      <div class="statGrid">
+        <div class="stat"><span>Bills</span><b>${report.billCount}</b></div>
+        <div class="stat"><span>Sales</span><b>${money(report.totalPaise)}</b></div>
+        <div class="stat"><span>Cash/UPI</span><b>${report.bills?.length || 0}</b></div>
+        <div class="stat"><span>Tables</span><b>${floorStats().occupied}</b></div>
       </div>
       <div class="panel">
         <b>Today Bills</b>
-        ${(report.bills || []).slice().reverse().map(b => `<div class="listrow"><b>${escapeHtml(b.number)}</b><div class="meta">${escapeHtml(b.paymentMethod)} · ${money(b.totals.grandTotalPaise)} · ${new Date(b.createdAt).toLocaleTimeString()}</div></div>`).join('') || '<div class="sub">No bills yet.</div>'}
+        ${(report.bills || []).slice().reverse().map(b => `<div class="listrow"><b>${escapeHtml(b.number)}</b><div class="meta">${escapeHtml(b.paymentMethod)} - ${money(b.totals.grandTotalPaise)} - ${new Date(b.createdAt).toLocaleTimeString()}</div></div>`).join('') || '<div class="sub">No bills yet.</div>'}
       </div>`
   } catch (e) { $('#reportBox').innerHTML = `<div class="error">${escapeHtml(e.message)}</div>` }
 }
@@ -318,17 +357,17 @@ async function downloadExport() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `mobile-pos-export-${new Date().toISOString().slice(0,10)}.json`
+    a.download = `mobile-pos-export-${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     URL.revokeObjectURL(url)
   } catch (e) { setMsg('', e.message) }
 }
 
 function setupView() {
-  return `<main class="screen">
+  return `<main class="screen authScreen">
     <div class="panel">
       <h1 class="title">Set Up POS</h1>
-      <div class="sub">Create the owner account and restaurant profile. Use a strong password; there is no default.</div>
+      <div class="sub">Create owner login and restaurant profile. After this the phone becomes your counter POS.</div>
       <label class="label">Restaurant</label><input class="input" id="setupRestaurant" placeholder="Restaurant name">
       <div class="grid2"><div><label class="label">Outlet</label><input class="input" id="setupOutlet" value="Main Outlet"></div><div><label class="label">Phone</label><input class="input" id="setupPhone"></div></div>
       <label class="label">Address</label><textarea class="textarea" id="setupAddress"></textarea>
@@ -341,7 +380,7 @@ function setupView() {
 }
 
 function loginView() {
-  return `<main class="screen">
+  return `<main class="screen authScreen">
     <div class="panel">
       <h1 class="title">${escapeHtml(state.status?.restaurant?.name || 'Mobile POS')}</h1>
       <div class="sub">Sign in to start billing from this phone.</div>
@@ -355,24 +394,36 @@ function loginView() {
 
 function tablesView() {
   const sections = [...new Set(state.tables.map(t => t.section || 'Dining'))]
+  const stats = floorStats()
+  const busy = stats.total ? Math.round((stats.occupied / stats.total) * 100) : 0
   return `<main class="screen">
-    <div class="panel">
-      <h1 class="title">Tables</h1>
-      <div class="sub">Select a table to open its running order. Final bill frees the table.</div>
+    <div class="command">
+      <div>
+        <h1 class="title">Table Floor</h1>
+        <div class="sub">Tap table, punch items, send KOT, then settle bill.</div>
+      </div>
+      <button class="btn secondary compact" onclick="openParcel()">Parcel</button>
     </div>
+    <div class="statGrid">
+      <div class="stat"><span>Occupied</span><b>${stats.occupied}/${stats.total}</b></div>
+      <div class="stat"><span>Available</span><b>${stats.available}</b></div>
+      <div class="stat"><span>Running</span><b>${money(stats.runningPaise)}</b></div>
+      <div class="stat"><span>Today</span><b>${money(state.today.totalPaise)}</b></div>
+    </div>
+    <div class="floorMeter"><span style="width:${busy}%"></span></div>
     ${sections.map(section => `
-      <div class="sectionTitle">${escapeHtml(section)}</div>
+      <div class="sectionBar"><b>${escapeHtml(section)}</b><span>${state.tables.filter(t => (t.section || 'Dining') === section && t.status === 'occupied').length} running</span></div>
       <div class="tableGrid">
         ${state.tables.filter(t => (t.section || 'Dining') === section).map(table => `
           <button class="tableCard ${table.status}" onclick="selectTable('${escapeHtml(table.id)}')">
+            <span class="badge">${table.status === 'occupied' ? 'RUNNING' : 'FREE'}</span>
             <b>${escapeHtml(table.name)}</b>
-            <span>${table.status === 'occupied' ? 'Occupied' : 'Available'}${table.capacity ? ` · ${table.capacity} pax` : ''}</span>
-            ${table.status === 'occupied' ? `<strong>${table.itemCount} items · ${money(table.totalPaise)}</strong>` : '<em>Tap to start</em>'}
+            <span>${table.capacity ? `${table.capacity} pax` : 'Dining'}</span>
+            ${table.status === 'occupied' ? `<strong>${table.itemCount} items<br>${money(table.totalPaise)}</strong>` : '<em>Open order</em>'}
           </button>
         `).join('')}
       </div>
     `).join('')}
-    <button class="btn secondary block" onclick="state.selectedTableId='';state.orderMeta={table:'Parcel',customerName:'',paymentMethod:'Cash',paidAmount:'',note:''};state.cart=[];state.tab='order';render()">Quick Parcel / No Table</button>
     ${messages()}
   </main>`
 }
@@ -382,11 +433,15 @@ function orderView() {
   const t = totals()
   const selected = state.tables.find(table => table.id === state.selectedTableId)
   return `<main class="screen">
-    <div class="panel">
-      <div class="row" style="margin-bottom:8px">
-        <div style="flex:1"><b>${selected ? escapeHtml(selected.name) : escapeHtml(state.orderMeta.table || 'No table')}</b><div class="meta">${selected ? 'Running table order' : 'Parcel / direct bill'}</div></div>
-        <button class="btn secondary" onclick="state.tab='tables';render()">Change</button>
+    <div class="billHead">
+      <div>
+        <div class="kicker">${selected ? 'DINE-IN' : 'PARCEL / DIRECT'}</div>
+        <h1 class="title">${selected ? escapeHtml(selected.name) : escapeHtml(state.orderMeta.table || 'No table')}</h1>
+        <div class="sub">${t.count} items - ${money(t.total)}</div>
       </div>
+      <button class="btn secondary compact" onclick="state.tab='tables';render()">Tables</button>
+    </div>
+    <div class="ticketPanel">
       <div class="grid2">
         <input class="input" id="tableName" placeholder="Table / parcel" value="${escapeHtml(state.orderMeta.table)}" oninput="setMeta('table', this.value)" ${selected ? 'readonly' : ''}>
         <select class="select" id="paymentMethod" onchange="setMeta('paymentMethod', this.value)"><option ${state.orderMeta.paymentMethod === 'Cash' ? 'selected' : ''}>Cash</option><option ${state.orderMeta.paymentMethod === 'UPI' ? 'selected' : ''}>UPI</option><option ${state.orderMeta.paymentMethod === 'Card' ? 'selected' : ''}>Card</option></select>
@@ -397,24 +452,35 @@ function orderView() {
       </div>
       <textarea class="textarea" id="orderNote" placeholder="Kitchen note" style="margin-top:8px" oninput="setMeta('note', this.value)">${escapeHtml(state.orderMeta.note)}</textarea>
     </div>
-    <div class="chips">${state.categories.map(c => `<button class="chip ${c === state.category ? 'active' : ''}" onclick="state.category='${escapeHtml(c)}';render()">${escapeHtml(c)}</button>`).join('')}</div>
-    <div class="items">${visible.map(item => `<button class="item" onclick="addItemById('${escapeHtml(item.id)}')"><b>${escapeHtml(item.name)}</b><span>${escapeHtml(item.category)} · ${money(item.pricePaise)}</span></button>`).join('')}</div>
-    <div class="panel">
-      <b>Custom item</b>
+    <div class="posGrid">
+      <aside class="categoryRail">${state.categories.map(c => `<button class="railBtn ${c === state.category ? 'active' : ''}" onclick="state.category='${escapeHtml(c)}';render()">${escapeHtml(c)}</button>`).join('')}</aside>
+      <section class="menuGrid">${visible.map(item => `<button class="item" onclick="addItemById('${escapeHtml(item.id)}')"><b>${escapeHtml(item.name)}</b><span>${escapeHtml(item.category)}</span><strong>${money(item.pricePaise)}</strong></button>`).join('')}</section>
+    </div>
+    <details class="customBox">
+      <summary>Custom item / open food</summary>
       <input class="input" id="customName" placeholder="Name" style="margin-top:8px">
       <div class="grid2"><input class="input" id="customPrice" type="number" placeholder="Price"><input class="input" id="customReason" placeholder="Reason"></div>
       <button class="btn secondary block" onclick="addCustomItem()">Add Custom Item</button>
-    </div>
+    </details>
     ${cartView()}
     ${state.lastPrintable ? `<div class="panel"><button class="btn dark block" onclick="printLast()">Print Last KOT/Bill</button><pre id="printBox" class="receipt">${escapeHtml(state.lastPrintable)}</pre></div>` : '<pre id="printBox" class="receipt hide"></pre>'}
     ${messages()}
-    ${state.cart.length ? `<div class="cartbar"><div class="total">${t.count} items · ${money(t.total)}</div>${state.selectedTableId ? '<button class="btn secondary" onclick="saveTableOrder()">Save</button>' : ''}<button class="btn secondary" onclick="sendKot()">KOT</button><button class="btn good" onclick="makeBill()">Bill</button></div>` : ''}
+    ${state.cart.length ? `<div class="cartbar"><div class="total">${t.count} items<br>${money(t.total)}</div>${state.selectedTableId ? '<button class="btn secondary" onclick="saveTableOrder()">Save</button>' : ''}<button class="btn secondary" onclick="sendKot()">KOT</button><button class="btn good" onclick="makeBill()">Bill</button></div>` : ''}
   </main>`
 }
 
 function cartView() {
   if (!state.cart.length) return '<div class="notice">Cart is empty. Tap menu items to add them.</div>'
-  return `<div class="panel"><b>Cart</b>${state.cart.map((line, i) => `<div class="cartline"><div><b>${escapeHtml(line.name)}</b><div class="meta">${money(line.pricePaise)} each${line.reason ? ` · ${escapeHtml(line.reason)}` : ''}</div></div><div class="qty"><button onclick="changeQty(${i},-1)">-</button><b>${line.quantity}</b><button onclick="changeQty(${i},1)">+</button></div></div>`).join('')}</div>`
+  const t = totals()
+  return `<div class="cartPanel">
+    <div class="cartTitle"><b>Current Ticket</b><button class="linkBtn" onclick="clearCart()">Clear</button></div>
+    ${state.cart.map((line, i) => `<div class="cartline"><div><b>${escapeHtml(line.name)}</b><div class="meta">${money(line.pricePaise)} each${line.reason ? ` - ${escapeHtml(line.reason)}` : ''}</div></div><div class="qty"><button onclick="changeQty(${i},-1)">-</button><b>${line.quantity}</b><button onclick="changeQty(${i},1)">+</button></div></div>`).join('')}
+    <div class="totals">
+      <span>Subtotal <b>${money(t.subtotal)}</b></span>
+      <span>Tax <b>${money(t.tax)}</b></span>
+      <strong>Total <b>${money(t.total)}</b></strong>
+    </div>
+  </div>`
 }
 
 function listView(kind) {
@@ -426,21 +492,23 @@ function listView(kind) {
       if (kind === 'kots') state.recentKots = docs
       else state.recentBills = docs
       const label = kind === 'kots' ? 'KOT' : 'BILL'
-      $(`#${kind}Box`).innerHTML = docs.map(d => `<div class="listrow"><b>${escapeHtml(d.number)}</b><div class="meta">${escapeHtml(d.table || 'No table')} · ${escapeHtml(d.staff)} · ${new Date(d.createdAt).toLocaleString()}</div><button class="btn secondary" onclick="printDoc('${label}','${escapeHtml(d.id)}')">Print</button></div>`).join('') || '<div class="sub">Nothing yet.</div>'
+      $(`#${kind}Box`).innerHTML = docs.map(d => `<div class="listrow"><b>${escapeHtml(d.number)}</b><div class="meta">${escapeHtml(d.table || 'No table')} - ${escapeHtml(d.staff)} - ${new Date(d.createdAt).toLocaleString()}</div><button class="btn secondary" onclick="printDoc('${label}','${escapeHtml(d.id)}')">Print</button></div>`).join('') || '<div class="sub">Nothing yet.</div>'
     } catch (e) { $(`#${kind}Box`).innerHTML = `<div class="error">${escapeHtml(e.message)}</div>` }
   }, 0)
-  return `<main class="screen"><div class="panel"><h1 class="title">${kind === 'kots' ? 'KOTs' : 'Bills'}</h1><div id="${kind}Box" class="sub">Loading...</div></div><pre id="printBox" class="receipt hide"></pre></main>`
+  return `<main class="screen"><div class="command"><div><h1 class="title">${kind === 'kots' ? 'KOTs' : 'Bills'}</h1><div class="sub">Recent printable records.</div></div></div><div class="panel"><div id="${kind}Box" class="sub">Loading...</div></div><pre id="printBox" class="receipt hide"></pre></main>`
 }
 
 function reportView() {
   setTimeout(renderReport, 0)
-  return `<main class="screen"><div id="reportBox"></div><button class="btn secondary block" onclick="downloadExport()">Download Backup JSON</button>${messages()}</main>`
+  return `<main class="screen"><div class="command"><div><h1 class="title">Reports</h1><div class="sub">Today sales and backup.</div></div><button class="btn secondary compact" onclick="downloadExport()">Backup</button></div><div id="reportBox"></div>${messages()}</main>`
 }
 
 function manageView() {
   const ownerOnly = state.user?.role === 'OWNER'
+  const sections = [...new Set(state.tables.map(t => t.section || 'Dining'))]
   return `<main class="screen">
-    ${ownerOnly ? `<div class="panel"><h1 class="title">Manage</h1><div class="sub">Owner-only menu and staff setup.</div>
+    <div class="command"><div><h1 class="title">Setup</h1><div class="sub">${state.menu.length} menu items - ${state.tables.length} tables - ${sections.length} sections</div></div></div>
+    ${ownerOnly ? `<div class="panel">
       <label class="label">Add Menu Item</label>
       <input class="input" id="newCategory" placeholder="Category">
       <input class="input" id="newItem" placeholder="Item name" style="margin-top:8px">
@@ -455,7 +523,9 @@ function manageView() {
       <div class="grid2"><input class="input" id="staffUsername" placeholder="Username"><select class="select" id="staffRole"><option>STAFF</option><option>OWNER</option></select></div>
       <input class="input" id="staffPassword" type="password" placeholder="Password, 6+ chars" style="margin-top:8px">
       <button class="btn dark block" onclick="addUser()">Add Staff</button>
-    </div>` : '<div class="panel"><h1 class="title">Manage</h1><div class="sub">Owner login required.</div></div>'}
+      <label class="label">Current Tables</label>
+      <div class="miniList">${state.tables.map(table => `<span>${escapeHtml(table.name)} - ${escapeHtml(table.section || 'Dining')}</span>`).join('')}</div>
+    </div>` : '<div class="panel"><h1 class="title">Setup</h1><div class="sub">Owner login required.</div></div>'}
     <button class="btn secondary block" onclick="logout()">Logout</button>
     ${messages()}
   </main>`
@@ -466,9 +536,9 @@ function messages() {
 }
 
 function shell(content) {
-  return `<div class="app"><header class="topbar"><div class="brand"><b>${escapeHtml(state.status?.restaurant?.name || 'Mobile POS')}</b><span>${escapeHtml(state.user?.name || '')}</span></div><button class="pill" onclick="logout()">Logout</button></header>${content}<nav class="tabs">${[
-    ['tables','Tables'], ['order','Order'], ['kots','KOT'], ['bills','Bills'], ['report','Report'], ['manage','Manage']
-  ].map(([key,label]) => `<button class="tab ${state.tab === key ? 'active' : ''}" onclick="state.tab='${key}';render()">${label}</button>`).join('')}</nav></div>`
+  return `<div class="app"><header class="topbar"><div class="brand"><b>${escapeHtml(state.status?.restaurant?.name || 'Mobile POS')}</b><span>${escapeHtml(state.user?.name || '')} - ${new Date().toLocaleDateString()}</span></div><button class="pill" onclick="logout()">Logout</button></header>${content}<nav class="tabs">${[
+    ['tables', 'Floor'], ['order', 'Bill'], ['kots', 'KOT'], ['bills', 'Bills'], ['report', 'Report'], ['manage', 'Setup']
+  ].map(([key, label]) => `<button class="tab ${state.tab === key ? 'active' : ''}" onclick="state.tab='${key}';render()">${label}</button>`).join('')}</nav></div>`
 }
 
 function render() {
@@ -479,5 +549,5 @@ function render() {
   app.innerHTML = shell((views[state.tab] || orderView)())
 }
 
-Object.assign(window, { state, render, setupOwner, login, logout, addItemById, changeQty, addCustomItem, sendKot, makeBill, printLast, printDoc, receiptFor, addMenuItem, addTable, addUser, downloadExport, selectTable, saveTableOrder, setMeta })
+Object.assign(window, { state, render, setupOwner, login, logout, addItemById, changeQty, addCustomItem, sendKot, makeBill, printLast, printDoc, receiptFor, addMenuItem, addTable, addUser, downloadExport, selectTable, saveTableOrder, setMeta, openParcel, clearCart })
 boot()
