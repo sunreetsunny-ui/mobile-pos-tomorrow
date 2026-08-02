@@ -159,7 +159,6 @@ async function requestActionPass(title, detail) {
 }
 
 async function addItem(item) {
-  if (!await requestActionPass('Add item locked', `${item.name} add karne ke liye passcode enter karein.`)) return
   const found = state.cart.find(line => line.id === item.id && line.type !== 'CUSTOM_ITEM')
   if (found) found.quantity += 1
   else state.cart.push({ ...item, quantity: 1 })
@@ -672,16 +671,15 @@ function tablesView() {
 function visibleMenuItems() {
   const query = state.menuSearch.trim().toLowerCase()
   return state.menu.filter(item => {
-    const categoryOk = state.category === 'All' || item.category === state.category
     const queryOk = !query || `${item.name} ${item.category}`.toLowerCase().includes(query)
-    return (query || state.category !== 'All') && categoryOk && queryOk
+    return query && queryOk
   })
 }
 
 function menuResultsHtml() {
   const query = state.menuSearch.trim()
   const visible = visibleMenuItems()
-  return visible.slice(0, 40).map(item => `<button class="item" onclick="addItemById('${escapeHtml(item.id)}')"><b>${escapeHtml(item.name)}</b><span>${escapeHtml(item.category)}</span><strong>${money(item.pricePaise)}</strong></button>`).join('') || `<div class="notice">${query ? 'No menu item found.' : 'Search item name or pick a category.'}</div>`
+  return visible.slice(0, 40).map(item => `<button class="item compactItem" onclick="addItemById('${escapeHtml(item.id)}')"><b>${escapeHtml(item.name)}</b><strong>${money(item.pricePaise)}</strong></button>`).join('') || `<div class="notice">${query ? 'No menu item found.' : 'Search item name.'}</div>`
 }
 
 function orderView() {
@@ -738,10 +736,7 @@ function orderView() {
       <input class="input searchInput" id="menuSearch" placeholder="Search menu item..." value="${escapeHtml(state.menuSearch)}" oninput="setMenuSearch(this.value)" autocomplete="off">
       <button class="linkBtn" onclick="setMenuSearch('')">Clear</button>
     </div>
-    <div class="posGrid">
-      <aside class="categoryRail">${state.categories.map(c => `<button class="railBtn ${c === state.category ? 'active' : ''}" onclick="state.category='${escapeHtml(c)}';render()">${escapeHtml(c)}</button>`).join('')}</aside>
-      <section class="menuGrid" id="menuResults">${menuResultsHtml()}</section>
-    </div>
+    <section class="menuGrid searchOnlyMenu" id="menuResults">${menuResultsHtml()}</section>
     <details class="customBox">
       <summary>Custom item / open food</summary>
       <input class="input" id="customName" placeholder="Name" style="margin-top:8px">

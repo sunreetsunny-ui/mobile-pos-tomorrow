@@ -212,6 +212,7 @@ button { touch-action: manipulation; }
 }
 .railBtn.active { background: #0b1220; color: white; border-color: #0b1220; }
 .menuGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.searchOnlyMenu { margin-top: 10px; }
 .item {
   border: 1px solid var(--line);
   background: white;
@@ -219,6 +220,13 @@ button { touch-action: manipulation; }
   padding: 10px;
   text-align: left;
   min-height: 92px;
+}
+.compactItem {
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
 }
 .item b { display: block; font-size: 14px; line-height: 1.2; overflow-wrap: anywhere; }
 .item span { display: block; color: var(--muted); font-size: 12px; margin-top: 5px; }

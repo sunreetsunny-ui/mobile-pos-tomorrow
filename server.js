@@ -336,9 +336,9 @@ function orderChangeSummary(previousItems = [], nextItems = []) {
 
 function assertSensitiveOrderChangeAllowed(previousItems = [], nextItems = [], passcode = '') {
   const summary = orderChangeSummary(previousItems, nextItems)
-  const needsPass = summary.added.length || summary.reduced.length || summary.cancelled.length || summary.custom.length
+  const needsPass = summary.reduced.length || summary.cancelled.length || summary.custom.length
   if (needsPass && String(passcode) !== KOT_UNLOCK_PASS) {
-    throw new Error('Passcode required for add, custom, minus, or cancel.')
+    throw new Error('Passcode required for custom item, minus, or cancel.')
   }
   return summary
 }
