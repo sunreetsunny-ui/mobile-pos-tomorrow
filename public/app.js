@@ -221,10 +221,11 @@ async function openPrintedTable(tableId) {
       state.tab = 'order'
       return setMsg('')
     }
+    const billRes = await api(`/api/bills/${encodeURIComponent(printedBill.id)}`)
     state.selectedTableId = tableId
     state.orderMeta = { ...state.orderMeta, table: res.table.name }
     state.cart = (res.order?.items || []).map(item => ({ ...item }))
-    state.lastBill = { id: printedBill.id, number: printedBill.number }
+    state.lastBill = billRes.bill
     state.lastPrintable = ''
     state.lastDoc = { kind: 'BILL', id: printedBill.id }
     state.orderUnlockPass = ''
@@ -382,6 +383,7 @@ async function printBillById(id) {
   try {
     const res = await api(`/api/bills/${encodeURIComponent(id)}`)
     state.lastPrintable = receiptFor('BILL', res.bill)
+    if (state.selectedTableId && state.tables.some(table => table.pendingPrintedBillId === res.bill.id)) state.lastBill = res.bill
     state.lastDoc = { kind: 'BILL', id: res.bill.id }
     render()
     setTimeout(printLast, 50)
@@ -644,6 +646,7 @@ function orderView() {
   const t = totals()
   const selected = state.tables.find(table => table.id === state.selectedTableId)
   if (selected?.pendingPrintedBillId) {
+    const printedBill = state.lastBill?.id === selected.pendingPrintedBillId ? state.lastBill : null
     return `<main class="screen">
       <div class="billHead">
         <div>
@@ -659,6 +662,11 @@ function orderView() {
         <div class="actionRow">
           <button class="btn dark" onclick="printBillById('${escapeHtml(selected.pendingPrintedBillId)}')">Reprint Bill</button>
         </div>
+      </div>
+      <div class="cartPanel">
+        <div class="cartTitle"><b>Bill Items</b><span class="muted">${printedBill ? `${printedBill.items.length} lines` : 'Loading'}</span></div>
+        ${printedBill ? printedBill.items.map(item => `<div class="cartline"><div><b>${escapeHtml(item.name)}</b><div class="meta">${money(item.pricePaise)} each${item.reason ? ` - ${escapeHtml(item.reason)}` : ''}</div></div><div class="right"><b>${item.quantity || 1}x</b><div class="meta">${money(item.totalPaise || item.pricePaise * (item.quantity || 1))}</div></div></div>`).join('') : '<div class="sub">Bill details loading...</div>'}
+        ${printedBill?.totals ? `<div class="totals"><span>Subtotal <b>${money(printedBill.totals.subtotalPaise)}</b></span>${printedBill.totals.taxPaise ? `<span>GST <b>${money(printedBill.totals.taxPaise)}</b></span>` : ''}<strong>Total <b>${money(printedBill.totals.grandTotalPaise)}</b></strong></div>` : ''}
       </div>
       <pre id="printBox" class="receipt hide"></pre>
       ${messages()}
