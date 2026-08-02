@@ -8,10 +8,13 @@ const state = {
   menu: [],
   categories: [],
   category: 'All',
+  tables: [],
+  selectedTableId: '',
+  orderMeta: { table: '', customerName: '', paymentMethod: 'Cash', paidAmount: '', note: '' },
   cart: [],
   recentKots: [],
   recentBills: [],
-  tab: 'order',
+  tab: 'tables',
   lastPrintable: '',
   message: '',
   error: '',
@@ -44,7 +47,7 @@ async function boot() {
     state.status = await api('/api/status')
     const me = await api('/api/me')
     state.user = me.user
-    if (state.user) await loadMenu()
+    if (state.user) await loadStartupData()
   } catch {
     state.user = null
   }
@@ -55,6 +58,16 @@ async function loadMenu() {
   const res = await api('/api/menu')
   state.menu = res.items || []
   state.categories = ['All', ...(res.categories || [])]
+}
+
+async function loadTables() {
+  const res = await api('/api/tables')
+  state.tables = res.tables || []
+}
+
+async function loadStartupData() {
+  await loadMenu()
+  await loadTables()
 }
 
 function totals(items = state.cart) {
@@ -82,6 +95,10 @@ function addItem(item) {
   render()
 }
 
+function setMeta(key, value) {
+  state.orderMeta[key] = value
+}
+
 function addItemById(itemId) {
   const item = state.menu.find(entry => entry.id === itemId)
   if (item) addItem(item)
@@ -105,6 +122,29 @@ function addCustomItem() {
   $('#customPrice').value = ''
   $('#customReason').value = ''
   render()
+}
+
+async function selectTable(tableId) {
+  try {
+    const res = await api(`/api/tables/${encodeURIComponent(tableId)}/order`)
+    state.selectedTableId = tableId
+    state.orderMeta.table = res.table.name
+    state.cart = (res.order?.items || []).map(item => ({ ...item }))
+    state.tab = 'order'
+    setMsg('')
+  } catch (e) { setMsg('', e.message) }
+}
+
+async function saveTableOrder(silent = false) {
+  if (!state.selectedTableId) return setMsg('', 'Select a table first')
+  try {
+    await api(`/api/tables/${encodeURIComponent(state.selectedTableId)}/order`, {
+      method: 'PUT',
+      body: JSON.stringify({ items: state.cart.map(itemPayload) }),
+    })
+    await loadTables()
+    if (!silent) setMsg('Table order saved')
+  } catch (e) { setMsg('', e.message) }
 }
 
 function receiptFor(kind, doc) {
@@ -135,9 +175,10 @@ function receiptFor(kind, doc) {
 
 async function sendKot() {
   try {
-    const table = $('#tableName').value.trim()
-    const note = $('#orderNote').value.trim()
-    const res = await api('/api/kot', { method: 'POST', body: JSON.stringify({ table, note, items: state.cart.map(itemPayload) }) })
+    const table = state.orderMeta.table.trim()
+    const note = state.orderMeta.note.trim()
+    const res = await api('/api/kot', { method: 'POST', body: JSON.stringify({ tableId: state.selectedTableId || undefined, table, note, items: state.cart.map(itemPayload) }) })
+    if (state.selectedTableId) await loadTables()
     state.lastPrintable = receiptFor('KOT', res.kot)
     setMsg(`KOT ${res.kot.number} saved`)
   } catch (e) { setMsg('', e.message) }
@@ -145,13 +186,16 @@ async function sendKot() {
 
 async function makeBill() {
   try {
-    const table = $('#tableName').value.trim()
-    const customerName = $('#customerName').value.trim()
-    const paymentMethod = $('#paymentMethod').value
-    const paidAmount = $('#paidAmount').value || (totals().total / 100)
-    const res = await api('/api/bill', { method: 'POST', body: JSON.stringify({ table, customerName, paymentMethod, paidAmount, items: state.cart.map(itemPayload) }) })
+    const table = state.orderMeta.table.trim()
+    const customerName = state.orderMeta.customerName.trim()
+    const paymentMethod = state.orderMeta.paymentMethod
+    const paidAmount = state.orderMeta.paidAmount || (totals().total / 100)
+    const res = await api('/api/bill', { method: 'POST', body: JSON.stringify({ tableId: state.selectedTableId || undefined, table, customerName, paymentMethod, paidAmount, items: state.cart.map(itemPayload) }) })
     state.lastPrintable = receiptFor('BILL', res.bill)
     state.cart = []
+    state.selectedTableId = ''
+    state.orderMeta = { table: '', customerName: '', paymentMethod: 'Cash', paidAmount: '', note: '' }
+    await loadTables()
     setMsg(`Bill ${res.bill.number} saved`)
   } catch (e) { setMsg('', e.message) }
 }
@@ -195,7 +239,7 @@ async function login() {
     state.user = res.user
     state.csrfToken = res.csrfToken
     sessionStorage.setItem('csrfToken', state.csrfToken)
-    await loadMenu()
+    await loadStartupData()
     setMsg('')
   } catch (e) { setMsg('', e.message) }
 }
@@ -206,6 +250,9 @@ async function logout() {
   state.csrfToken = ''
   sessionStorage.removeItem('csrfToken')
   state.cart = []
+  state.tables = []
+  state.selectedTableId = ''
+  state.orderMeta = { table: '', customerName: '', paymentMethod: 'Cash', paidAmount: '', note: '' }
   render()
 }
 
@@ -233,6 +280,19 @@ async function addUser() {
     }
     await api('/api/users', { method: 'POST', body: JSON.stringify(body) })
     setMsg('Staff user added')
+  } catch (e) { setMsg('', e.message) }
+}
+
+async function addTable() {
+  try {
+    const body = {
+      name: $('#newTableName').value.trim(),
+      capacity: $('#newTableCapacity').value,
+      section: $('#newTableSection').value.trim() || 'Dining',
+    }
+    await api('/api/tables', { method: 'POST', body: JSON.stringify(body) })
+    await loadTables()
+    setMsg('Table added')
   } catch (e) { setMsg('', e.message) }
 }
 
@@ -293,20 +353,49 @@ function loginView() {
   </main>`
 }
 
+function tablesView() {
+  const sections = [...new Set(state.tables.map(t => t.section || 'Dining'))]
+  return `<main class="screen">
+    <div class="panel">
+      <h1 class="title">Tables</h1>
+      <div class="sub">Select a table to open its running order. Final bill frees the table.</div>
+    </div>
+    ${sections.map(section => `
+      <div class="sectionTitle">${escapeHtml(section)}</div>
+      <div class="tableGrid">
+        ${state.tables.filter(t => (t.section || 'Dining') === section).map(table => `
+          <button class="tableCard ${table.status}" onclick="selectTable('${escapeHtml(table.id)}')">
+            <b>${escapeHtml(table.name)}</b>
+            <span>${table.status === 'occupied' ? 'Occupied' : 'Available'}${table.capacity ? ` · ${table.capacity} pax` : ''}</span>
+            ${table.status === 'occupied' ? `<strong>${table.itemCount} items · ${money(table.totalPaise)}</strong>` : '<em>Tap to start</em>'}
+          </button>
+        `).join('')}
+      </div>
+    `).join('')}
+    <button class="btn secondary block" onclick="state.selectedTableId='';state.orderMeta={table:'Parcel',customerName:'',paymentMethod:'Cash',paidAmount:'',note:''};state.cart=[];state.tab='order';render()">Quick Parcel / No Table</button>
+    ${messages()}
+  </main>`
+}
+
 function orderView() {
   const visible = state.category === 'All' ? state.menu : state.menu.filter(i => i.category === state.category)
   const t = totals()
+  const selected = state.tables.find(table => table.id === state.selectedTableId)
   return `<main class="screen">
     <div class="panel">
-      <div class="grid2">
-        <input class="input" id="tableName" placeholder="Table / parcel">
-        <select class="select" id="paymentMethod"><option>Cash</option><option>UPI</option><option>Card</option></select>
+      <div class="row" style="margin-bottom:8px">
+        <div style="flex:1"><b>${selected ? escapeHtml(selected.name) : escapeHtml(state.orderMeta.table || 'No table')}</b><div class="meta">${selected ? 'Running table order' : 'Parcel / direct bill'}</div></div>
+        <button class="btn secondary" onclick="state.tab='tables';render()">Change</button>
       </div>
       <div class="grid2">
-        <input class="input" id="customerName" placeholder="Customer name" style="margin-top:8px">
-        <input class="input" id="paidAmount" type="number" placeholder="Paid amount" style="margin-top:8px">
+        <input class="input" id="tableName" placeholder="Table / parcel" value="${escapeHtml(state.orderMeta.table)}" oninput="setMeta('table', this.value)" ${selected ? 'readonly' : ''}>
+        <select class="select" id="paymentMethod" onchange="setMeta('paymentMethod', this.value)"><option ${state.orderMeta.paymentMethod === 'Cash' ? 'selected' : ''}>Cash</option><option ${state.orderMeta.paymentMethod === 'UPI' ? 'selected' : ''}>UPI</option><option ${state.orderMeta.paymentMethod === 'Card' ? 'selected' : ''}>Card</option></select>
       </div>
-      <textarea class="textarea" id="orderNote" placeholder="Kitchen note" style="margin-top:8px"></textarea>
+      <div class="grid2">
+        <input class="input" id="customerName" placeholder="Customer name" style="margin-top:8px" value="${escapeHtml(state.orderMeta.customerName)}" oninput="setMeta('customerName', this.value)">
+        <input class="input" id="paidAmount" type="number" placeholder="Paid amount" style="margin-top:8px" value="${escapeHtml(state.orderMeta.paidAmount)}" oninput="setMeta('paidAmount', this.value)">
+      </div>
+      <textarea class="textarea" id="orderNote" placeholder="Kitchen note" style="margin-top:8px" oninput="setMeta('note', this.value)">${escapeHtml(state.orderMeta.note)}</textarea>
     </div>
     <div class="chips">${state.categories.map(c => `<button class="chip ${c === state.category ? 'active' : ''}" onclick="state.category='${escapeHtml(c)}';render()">${escapeHtml(c)}</button>`).join('')}</div>
     <div class="items">${visible.map(item => `<button class="item" onclick="addItemById('${escapeHtml(item.id)}')"><b>${escapeHtml(item.name)}</b><span>${escapeHtml(item.category)} · ${money(item.pricePaise)}</span></button>`).join('')}</div>
@@ -319,7 +408,7 @@ function orderView() {
     ${cartView()}
     ${state.lastPrintable ? `<div class="panel"><button class="btn dark block" onclick="printLast()">Print Last KOT/Bill</button><pre id="printBox" class="receipt">${escapeHtml(state.lastPrintable)}</pre></div>` : '<pre id="printBox" class="receipt hide"></pre>'}
     ${messages()}
-    ${state.cart.length ? `<div class="cartbar"><div class="total">${t.count} items · ${money(t.total)}</div><button class="btn secondary" onclick="sendKot()">KOT</button><button class="btn good" onclick="makeBill()">Bill</button></div>` : ''}
+    ${state.cart.length ? `<div class="cartbar"><div class="total">${t.count} items · ${money(t.total)}</div>${state.selectedTableId ? '<button class="btn secondary" onclick="saveTableOrder()">Save</button>' : ''}<button class="btn secondary" onclick="sendKot()">KOT</button><button class="btn good" onclick="makeBill()">Bill</button></div>` : ''}
   </main>`
 }
 
@@ -357,6 +446,10 @@ function manageView() {
       <input class="input" id="newItem" placeholder="Item name" style="margin-top:8px">
       <div class="grid2"><input class="input" id="newPrice" type="number" placeholder="Price"><input class="input" id="newTax" type="number" value="5" placeholder="GST %"></div>
       <button class="btn block" onclick="addMenuItem()">Add Item</button>
+      <label class="label">Add Table</label>
+      <div class="grid2"><input class="input" id="newTableName" placeholder="T-5 / Rooftop 1"><input class="input" id="newTableCapacity" type="number" placeholder="Pax"></div>
+      <input class="input" id="newTableSection" placeholder="Section" value="Dining" style="margin-top:8px">
+      <button class="btn secondary block" onclick="addTable()">Add Table</button>
       <label class="label">Add Staff</label>
       <input class="input" id="staffName" placeholder="Staff name">
       <div class="grid2"><input class="input" id="staffUsername" placeholder="Username"><select class="select" id="staffRole"><option>STAFF</option><option>OWNER</option></select></div>
@@ -374,7 +467,7 @@ function messages() {
 
 function shell(content) {
   return `<div class="app"><header class="topbar"><div class="brand"><b>${escapeHtml(state.status?.restaurant?.name || 'Mobile POS')}</b><span>${escapeHtml(state.user?.name || '')}</span></div><button class="pill" onclick="logout()">Logout</button></header>${content}<nav class="tabs">${[
-    ['order','Order'], ['kots','KOT'], ['bills','Bills'], ['report','Report'], ['manage','Manage']
+    ['tables','Tables'], ['order','Order'], ['kots','KOT'], ['bills','Bills'], ['report','Report'], ['manage','Manage']
   ].map(([key,label]) => `<button class="tab ${state.tab === key ? 'active' : ''}" onclick="state.tab='${key}';render()">${label}</button>`).join('')}</nav></div>`
 }
 
@@ -382,9 +475,9 @@ function render() {
   if (!state.status) { app.innerHTML = '<main class="screen"><div class="panel">Loading...</div></main>'; return }
   if (!state.status.setupComplete) { app.innerHTML = setupView(); return }
   if (!state.user) { app.innerHTML = loginView(); return }
-  const views = { order: orderView, kots: () => listView('kots'), bills: () => listView('bills'), report: reportView, manage: manageView }
+  const views = { tables: tablesView, order: orderView, kots: () => listView('kots'), bills: () => listView('bills'), report: reportView, manage: manageView }
   app.innerHTML = shell((views[state.tab] || orderView)())
 }
 
-Object.assign(window, { state, render, setupOwner, login, logout, addItemById, changeQty, addCustomItem, sendKot, makeBill, printLast, printDoc, receiptFor, addMenuItem, addUser, downloadExport })
+Object.assign(window, { state, render, setupOwner, login, logout, addItemById, changeQty, addCustomItem, sendKot, makeBill, printLast, printDoc, receiptFor, addMenuItem, addTable, addUser, downloadExport, selectTable, saveTableOrder, setMeta })
 boot()

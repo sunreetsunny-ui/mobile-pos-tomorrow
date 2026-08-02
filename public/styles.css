@@ -93,7 +93,7 @@ button { touch-action: manipulation; }
   background: white;
   border-top: 1px solid var(--line);
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   padding: 7px 6px calc(7px + env(safe-area-inset-bottom));
 }
 .tab {
@@ -119,6 +119,21 @@ button { touch-action: manipulation; }
 }
 .chip.active { background: var(--ink); color: white; border-color: var(--ink); }
 .items { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.sectionTitle { font-size: 12px; color: var(--muted); font-weight: 850; margin: 14px 2px 8px; text-transform: uppercase; }
+.tableGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+.tableCard {
+  min-height: 104px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  padding: 12px;
+  text-align: left;
+}
+.tableCard b { display: block; font-size: 18px; margin-bottom: 6px; }
+.tableCard span, .tableCard em { display: block; color: var(--muted); font-size: 12px; font-style: normal; }
+.tableCard strong { display: block; color: var(--brand-dark); margin-top: 10px; font-size: 13px; }
+.tableCard.occupied { border-color: #fed7aa; background: #fff7ed; }
+.tableCard.available { border-color: #bbf7d0; background: #f0fdf4; }
 .item {
   border: 1px solid var(--line);
   background: white;
@@ -173,6 +188,7 @@ button { touch-action: manipulation; }
 .hide { display: none !important; }
 @media (min-width: 760px) {
   .items { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tableGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @media print {
   body * { visibility: hidden; }

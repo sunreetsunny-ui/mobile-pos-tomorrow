@@ -22,6 +22,8 @@ function defaultData() {
     setupComplete: false,
     restaurant: { name: '', outlet: '', phone: '', address: '', currency: 'INR', timezone: 'Asia/Kolkata' },
     users: [],
+    tables: seedTables(),
+    runningOrders: [],
     menu: seedMenu(),
     orders: [],
     kots: [],
@@ -29,6 +31,16 @@ function defaultData() {
     audit: [],
     sequences: { kot: 0, invoice: 0 },
   }
+}
+
+function seedTables() {
+  return [
+    { id: id('table'), name: 'T-1', capacity: 2, section: 'Dining', active: true },
+    { id: id('table'), name: 'T-2', capacity: 4, section: 'Dining', active: true },
+    { id: id('table'), name: 'T-3', capacity: 4, section: 'Dining', active: true },
+    { id: id('table'), name: 'T-4', capacity: 6, section: 'Dining', active: true },
+    { id: id('table'), name: 'Parcel', capacity: 0, section: 'Takeaway', active: true },
+  ]
 }
 
 function seedMenu() {
@@ -51,7 +63,11 @@ function loadData() {
     saveData(data)
     return data
   }
-  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'))
+  const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'))
+  if (!Array.isArray(data.tables)) data.tables = seedTables()
+  if (!Array.isArray(data.runningOrders)) data.runningOrders = []
+  if (!data.sequences) data.sequences = { kot: 0, invoice: 0 }
+  return data
 }
 
 function saveData(data) {
@@ -257,6 +273,38 @@ function safeItemFromMenu(data, input) {
   }
 }
 
+function publicTables(data) {
+  return data.tables.filter(table => table.active).map(table => {
+    const order = data.runningOrders.find(entry => entry.tableId === table.id)
+    const orderTotals = order ? calculateTotals(order.items || []) : null
+    return {
+      ...table,
+      status: order && order.items?.length ? 'occupied' : 'available',
+      itemCount: orderTotals ? orderTotals.lines.reduce((sum, item) => sum + item.quantity, 0) : 0,
+      totalPaise: orderTotals ? orderTotals.grandTotalPaise : 0,
+      updatedAt: order && order.updatedAt,
+    }
+  })
+}
+
+function tableById(data, tableId) {
+  return data.tables.find(table => table.id === tableId && table.active)
+}
+
+function upsertRunningOrder(data, tableId, items, actor) {
+  const existing = data.runningOrders.find(entry => entry.tableId === tableId)
+  if (!items.length) {
+    data.runningOrders = data.runningOrders.filter(entry => entry.tableId !== tableId)
+    audit(data, actor, 'TABLE_ORDER_CLEARED', { tableId })
+    return null
+  }
+  const payload = { tableId, items, updatedAt: nowIso(), updatedBy: actor.name }
+  if (existing) Object.assign(existing, payload)
+  else data.runningOrders.push(payload)
+  audit(data, actor, 'TABLE_ORDER_SAVED', { tableId, itemCount: items.length })
+  return payload
+}
+
 async function handleApi(req, res, data) {
   const url = new URL(req.url, `http://${req.headers.host}`)
   const route = `${req.method} ${url.pathname}`
@@ -313,6 +361,51 @@ async function handleApi(req, res, data) {
   if (!user) return
   if (!requireCsrf(req, res)) return
 
+  if (route === 'GET /api/tables') {
+    return send(res, 200, { tables: publicTables(data) })
+  }
+
+  if (route === 'POST /api/tables') {
+    const owner = requireOwner(req, res, data)
+    if (!owner) return
+    const body = await readJson(req)
+    const table = {
+      id: id('table'),
+      name: String(body.name || '').trim().slice(0, 30),
+      capacity: Math.max(0, Math.trunc(Number(body.capacity || 0))),
+      section: String(body.section || 'Dining').trim().slice(0, 30),
+      active: true,
+    }
+    if (!table.name) return send(res, 400, { error: 'Table name required' })
+    if (data.tables.some(existing => existing.active && existing.name.toLowerCase() === table.name.toLowerCase())) {
+      return send(res, 409, { error: 'Table already exists' })
+    }
+    data.tables.push(table)
+    audit(data, owner, 'TABLE_CREATED', { tableId: table.id, name: table.name })
+    saveData(data)
+    return send(res, 200, { table })
+  }
+
+  const tableOrderMatch = url.pathname.match(/^\/api\/tables\/([^/]+)\/order$/)
+  if (tableOrderMatch && req.method === 'GET') {
+    const tableId = decodeURIComponent(tableOrderMatch[1])
+    const table = tableById(data, tableId)
+    if (!table) return send(res, 404, { error: 'Table not found' })
+    const order = data.runningOrders.find(entry => entry.tableId === tableId)
+    return send(res, 200, { table, order: order || { tableId, items: [], updatedAt: null } })
+  }
+
+  if (tableOrderMatch && req.method === 'PUT') {
+    const tableId = decodeURIComponent(tableOrderMatch[1])
+    const table = tableById(data, tableId)
+    if (!table) return send(res, 404, { error: 'Table not found' })
+    const body = await readJson(req)
+    const items = (body.items || []).map(input => safeItemFromMenu(data, input))
+    const order = upsertRunningOrder(data, tableId, items, user)
+    saveData(data)
+    return send(res, 200, { table, order })
+  }
+
   if (route === 'GET /api/menu') {
     return send(res, 200, { items: data.menu.filter(item => item.active), categories: [...new Set(data.menu.filter(i => i.active).map(i => i.category))] })
   }
@@ -368,7 +461,10 @@ async function handleApi(req, res, data) {
     const body = await readJson(req)
     const items = (body.items || []).map(input => safeItemFromMenu(data, input))
     if (!items.length) return send(res, 400, { error: 'No items' })
-    const kot = { id: id('kot'), number: `KOT-${String(++data.sequences.kot).padStart(5, '0')}`, table: body.table || '', orderType: body.orderType || 'DINE_IN', items, note: body.note || '', createdAt: nowIso(), staff: user.name }
+    const table = body.tableId ? tableById(data, body.tableId) : null
+    if (body.tableId && !table) return send(res, 404, { error: 'Table not found' })
+    if (table) upsertRunningOrder(data, table.id, items, user)
+    const kot = { id: id('kot'), number: `KOT-${String(++data.sequences.kot).padStart(5, '0')}`, tableId: table && table.id, table: table ? table.name : (body.table || ''), orderType: body.orderType || 'DINE_IN', items, note: body.note || '', createdAt: nowIso(), staff: user.name }
     data.kots.push(kot)
     audit(data, user, 'KOT_CREATED', { kotId: kot.id, number: kot.number, customItems: items.filter(i => i.type === 'CUSTOM_ITEM').length })
     saveData(data)
@@ -379,13 +475,16 @@ async function handleApi(req, res, data) {
     const body = await readJson(req)
     const items = (body.items || []).map(input => safeItemFromMenu(data, input))
     if (!items.length) return send(res, 400, { error: 'No items' })
+    const table = body.tableId ? tableById(data, body.tableId) : null
+    if (body.tableId && !table) return send(res, 404, { error: 'Table not found' })
     const totals = calculateTotals(items, paise(body.discount || 0))
     const paidPaise = paise(body.paidAmount == null ? rupees(totals.grandTotalPaise) : body.paidAmount)
     if (paidPaise < totals.grandTotalPaise) return send(res, 400, { error: 'Paid amount is less than bill total' })
     const bill = {
       id: id('bill'),
       number: `INV-${String(++data.sequences.invoice).padStart(5, '0')}`,
-      table: body.table || '',
+      tableId: table && table.id,
+      table: table ? table.name : (body.table || ''),
       orderType: body.orderType || 'DINE_IN',
       customerName: body.customerName || '',
       paymentMethod: body.paymentMethod || 'Cash',
@@ -397,6 +496,7 @@ async function handleApi(req, res, data) {
       staff: user.name,
     }
     data.bills.push(bill)
+    if (table) data.runningOrders = data.runningOrders.filter(entry => entry.tableId !== table.id)
     audit(data, user, 'BILL_FINALIZED', { billId: bill.id, number: bill.number, totalPaise: totals.grandTotalPaise, customItems: items.filter(i => i.type === 'CUSTOM_ITEM').length })
     saveData(data)
     return send(res, 200, { bill })
